@@ -21,6 +21,67 @@ The code is in `sdk/src/ui/switch_saltynx.cpp` (FPS, resolution and the ReverseN
   ourselves, and the game obeys the mode chosen in its overlay: resolution, window size and, if you allow it, clocks.
 - **What you need on the console:** SaltyNX 0.7.0 or later. Without it, the port does nothing here and loses nothing.
 
+## Making SaltyNX work with a homebrew program (.nro)
+
+By default, SaltyNX only works with commercial games: the overlay shows "Game is not running or it's incompatible"
+for any homebrew program, and ReverseNX-RT says "ReverseNX-RT is not running!". This section is the short version of
+how to change that for your own .nro. The rest of the page explains each step in detail.
+
+**Nothing changes in SaltyNX, and nothing has to be installed besides SaltyNX 0.7.0 or later.** SaltyNX cannot load
+itself into a homebrew program (see [How the overlay gets its numbers](#how-the-overlay-gets-its-numbers)), so the
+.nro does the work SaltyNX would do: it asks SaltyNX for its shared page and writes the data there. For the overlay,
+the result is exactly the same as with a commercial game: it shows the FPS and the resolution, and ReverseNX-RT shows
+its controls.
+
+### Using this port's code in your .nro
+
+The code only needs [libnx](glossary.md#libnx). Copy two files:
+
+- `sdk/src/ui/switch_saltynx.cpp`
+- `sdk/include/rex/ui/switch_saltynx.h`
+
+The header includes `rex/platform.h` only to know that it is built for the Switch. Outside this project, replace that
+line with `#define REX_PLATFORM_SWITCH 1`. Then call four functions from your program:
+
+```cpp
+#include "rex/ui/switch_saltynx.h"
+namespace salty = rex::ui::switch_saltynx;
+
+// 1. At startup. If SaltyNX is not installed it does nothing; if it is not ready yet, the next calls retry.
+salty::Iniciar();
+
+// 2. Every time you present a frame (after vkQueuePresentKHR, eglSwapBuffers, nwindowQueueBuffer...).
+//    It writes about 25 bytes to memory that is already mapped: no system calls.
+salty::Latir(width, height);
+
+// 3. Once per second, from any thread: frames in the last second, their average, the resolution
+//    and the number of frames since startup. If the block was lost, it finds it again.
+salty::Actualizar(fps_last_second, fps_average, width, height, frames_since_startup);
+
+// 4. Wherever your program asks whether the console is docked: obey ReverseNX-RT.
+bool docked = salty::ModoBase(appletGetOperationMode() == AppletOperationMode_Console);
+```
+
+Two things to adjust:
+
+- The block says which graphics API the game uses. The code writes `3` (Vulkan) in `SembrarBloque` and `Latir`. Use
+  `1` for NVN or `2` for OpenGL.
+- Warnings go to `stderr`, with lines starting with `[saltynx]`. Send `stderr` to a file on the SD card (libnx's
+  `freopen` or your own log) so that you can see which port connected, or why it failed.
+
+### How to tell that it works
+
+Open Status Monitor Overlay (or Horizon OC Monitor) with your .nro running: the **FPS** and **RES** rows should show
+values. In this port they appear about one second after startup. If they do not:
+
+| What you see | What it means |
+|---|---|
+| No `[saltynx]` line at all | `Iniciar()` is not being called, or `stderr` goes nowhere. |
+| `0xF201` | SaltyNX is not installed, or it has not started yet. |
+| `0x10801` and `sesiones usadas / tope: 1 / 1` | Your process has no free session. The code makes room by itself (see [Why the connection may fail](#why-the-connection-may-fail-one-session-for-the-whole-process)); check the lines that follow. |
+| The overlay says "Game is not running" | `Latir()` is not called on every frame. Once per second is too late. |
+| The average shows `inf` | `FPSticks` is empty: `Latir()` has not run twice yet. |
+
 ## How the overlay gets its numbers
 
 Status Monitor Overlay shows a frame rate (**FPS**) and a resolution (**RES**) for commercial games. It does not

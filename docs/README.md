@@ -33,7 +33,7 @@ This is the path the game follows, from the Xbox 360 disc to the Switch screen:
 | Port another Xbox 360 game | [porting-another-game.md](porting-another-game.md), then [native-renderer.md](native-renderer.md), [shaders.md](shaders.md) and [platform-notes.md](platform-notes.md) |
 | Make a port faster | [measuring.md](measuring.md) first, then [performance-history.md](performance-history.md), [toolchain.md](toolchain.md) and [mesa.md](mesa.md) |
 | Support another edition or language of the game | [editions.md](editions.md) |
-| Show FPS and resolution in the console overlays, or follow ReverseNX-RT | [console-overlays.md](console-overlays.md) |
+| Make SaltyNX (FPS, resolution, ReverseNX-RT) work with your homebrew program | [console-overlays.md](console-overlays.md) |
 
 ## All documents
 
@@ -48,7 +48,7 @@ This is the path the game follows, from the Xbox 360 disc to the Switch screen:
 | [mesa.md](mesa.md) | The graphics driver and this port's changes to it |
 | [platform-notes.md](platform-notes.md) | Things about the Switch system that cost a lot of time to find out |
 | [audio-and-video.md](audio-and-video.md) | The game's audio and cutscenes on the Switch |
-| [console-overlays.md](console-overlays.md) | How the port shows its FPS and resolution in the console overlays (SaltyNX), and follows ReverseNX-RT |
+| [console-overlays.md](console-overlays.md) | How to make SaltyNX work with a homebrew program: FPS and resolution in the console overlays, and ReverseNX-RT |
 | [editions.md](editions.md) | How every edition and language of the game is supported |
 | [measuring.md](measuring.md) | How to measure performance on the console without being misled |
 | [performance-history.md](performance-history.md) | How the frame rate went from a few FPS to about 30, step by step |
