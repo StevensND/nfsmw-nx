@@ -22,6 +22,8 @@ drawn through [Mesa](glossary.md#mesa) on the Switch.
 - In NVK, every fence check and every queue submission is a call into the system, and GPU memory allocations are slow
   and limited in number.
 - Presentation has fixed limits: one Vulkan queue, three swapchain images, and only the FIFO and IMMEDIATE modes.
+- SaltyNX never loads itself into a homebrew program, so the console overlays show no FPS and ReverseNX-RT does
+  nothing until the program writes their shared blocks itself. See [console-overlays.md](console-overlays.md).
 
 ## Hardware at stock clocks
 

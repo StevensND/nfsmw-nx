@@ -140,8 +140,8 @@ The categories:
 
 The resolution is automatic by default (`nfsmw_resolucion_interna = "automatico"`): **1280x720** in handheld mode and
 **1920x1080** docked. It's chosen when the game starts: if you dock or undock the console while playing, the game keeps
-the resolution, scaled to the screen until you restart it. ReverseNX-RT's Fake Docked and Fake Handheld count as well,
-when they are saved for the game with **Save current settings** in the overlay.
+the resolution, scaled to the screen until you restart it. ReverseNX-RT's Fake Docked and Fake Handheld count as well:
+choose the mode in its overlay and restart the game. The choice is kept until you restart the console.
 
 To use one resolution in both modes, set it in `nfsmw.toml` (or in the Debug Menu, category **Graficos**, then
 **Save to config**) and restart the game:
@@ -199,7 +199,7 @@ For this port:
 
 - In Horizon OC, set the clocks with **Edit App Profile** while the game is running. The App ID is the one of the game
   you hold **R** on to launch it, or your forwarder's.
-- Status Monitor shows the port's frame rate if SaltyNX is installed.
+- Status Monitor shows the port's frame rate and resolution if SaltyNX is installed ([how it works](docs/console-overlays.md)).
 
 ## How it works
 
