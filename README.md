@@ -28,6 +28,8 @@ One NRO per edition of the game (the installer page picks the right one automati
 | `nfsmw-nx-pal-pl.nro` | PAL - Polish (Fan Version) |
 | `nfsmw-nx-usa.nro` | NTSC-U |
 | `nfsmw-nx-jpn.nro` | NTSC-J |
+| `nfsmw-nx-kor.nro` | NTSC-K - Korean |
+| `nfsmw-nx-cht.nro` | NTSC - Asia, Traditional Chinese |
 
 ## How to install
 
