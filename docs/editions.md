@@ -51,9 +51,21 @@ of the reference executable. In other editions the same functions are often at o
    edition. It aligns the code of both executables using runs of 12 [PowerPC](glossary.md#powerpc) instructions
    (12-grams) as anchors. The instructions are normalised first, which means the parts that depend on where the code
    sits (such as branch offsets) are removed. Only anchors that come in a consistent order are kept (a longest
-   increasing subsequence). `.rdata` is matched by content, with windows of 32 to 1,024 bytes. The result is a map
-   from every address of the reference to the other edition: a table (`.tsv`) with the name you give as the third
-   argument (`emparejar.py <PAL image> <other image> <output.tsv>`).
+   increasing subsequence). `.rdata` is matched by content, with windows of 32 to 1,024 bytes. It translates the
+   addresses it is given, as arguments or one per line on standard input, and writes a table (`.tsv`) with the name
+   you give as the third argument. The addresses to give it are all the ones the reference tree uses, and
+   `direcciones.py` ("addresses") lists them: the sources, the code generator settings, the linker order, the
+   function partition and the weak calls of the generated code. The partition and the generated code only exist once
+   the code generator has run on the reference tree, so run it first:
+
+   ```bash
+   python tools/editions/direcciones.py app > addresses.txt
+   python tools/editions/emparejar.py <PAL image> <other image> todas.tsv < addresses.txt
+   ```
+
+   The images are the decompressed executables (the PE image inside each `default.xex`), not the `.xex` files.
+   `test/save_image.mjs` in the [installer's repository](https://github.com/StevensND/nfsmw-nx-installer) saves it
+   from an ISO (`node test/save_image.mjs <iso> <output image>`).
 2. **Verify the hooked functions.** `verificar_ganchos.py` ("verify hooks") compares every hooked function in full
    between the two executables. This is needed because step 1 only compares short pieces of code, and a hook depends
    on the whole function being the same.
