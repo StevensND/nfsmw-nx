@@ -18,8 +18,9 @@ Xbox disc and stay in English.
 
 ## What you need
 
-- Your Xbox 360 disc image of the **PAL (English)** edition (`default.xex` SHA-256
-  `e2ea2ff1…10474`, as in the installer manifest), already installed with the installer page.
+- Your Xbox 360 disc image of the official **PAL (English)** edition (`default.xex` SHA-256
+  `e2ea2ff1…10474` and a 381569024-byte `NFS/ZZDATA0.BIN`, as in the installer manifest), already
+  installed with the installer page. Fan translations based on it (Russian, Polish) are refused.
 - Your **original Xbox** disc image of the **French** edition.
 - Python 3 with numpy.
 - FFmpeg with ffprobe next to it (WMA2 encoder, `soxr` resampler).
@@ -53,6 +54,15 @@ first):
 | `NFS/ZZDATA0.BIN` | 381 MB |
 | `NFS/ZZDATA9.BIN` | 460 MB |
 | `Movies/*.wmv` | 32 files, about 1.1 GB |
+
+Nothing in the port changes: the PAL (English) NRO, `nfsmw.toml` and the shader library stay the
+same, and players who do not run these tools are not affected. Only files of `game_root` are
+replaced, so:
+
+- the installer page's **update** package (`nfsmw-nx-update.zip`: NRO, `nfsmw.toml`, shaders) keeps
+  the French files;
+- a **full** package made again from the English disc (`nfsmw-nx.zip`) brings back the English
+  files, as does restoring the backed-up ones.
 
 `patch_speech.py` takes about 25 minutes to decode and 20 to encode; `--cache` keeps the encoded
 lines (game audio — do not share that file either).

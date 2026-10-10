@@ -14,8 +14,11 @@ ENTRY = 24
 SECTOR = 2048
 BS = chr(92)
 
-# default.xex of the "PAL (English)" edition (same value as in the nfsmw-nx installer manifest)
+# Official "PAL (English)" disc, as in the nfsmw-nx installer manifest. Fan translations based on it
+# are refused: the Russian one keeps this default.xex but has another ZZDATA0.BIN (387301706 bytes),
+# the Polish one has another default.xex.
 PAL_ENGLISH_XEX = "e2ea2ff11bf84cb30430d824d7bfe699a3acf3e7400d21b9a7c938e3d7a10474"
+PAL_ENGLISH_ZZDATA0 = 381569024
 
 
 def bstringhash(name):
@@ -68,8 +71,10 @@ class Disc:
 def open_discs(iso360, iso_xbox):
     """Open both images and check they are the editions this tool was tested with."""
     x360 = Disc(iso360)
-    if hashlib.sha256(x360.read_file("default.xex")).hexdigest() != PAL_ENGLISH_XEX:
-        raise SystemExit("the Xbox 360 image is not the PAL (English) edition this tool supports")
+    if (hashlib.sha256(x360.read_file("default.xex")).hexdigest() != PAL_ENGLISH_XEX
+            or x360.files["NFS/ZZDATA0.BIN"][0] != PAL_ENGLISH_ZZDATA0):
+        raise SystemExit("the Xbox 360 image is not the official PAL (English) disc this tool supports "
+                         "(fan translations are not supported)")
     xbox = Disc(iso_xbox)
     if not xbox.has(path("SOUND", "SPEECH", "COPSPEECH_FR.BIG")):
         raise SystemExit("the Xbox image is not the French edition (no COPSPEECH_FR.BIG)")
