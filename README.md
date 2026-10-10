@@ -153,6 +153,10 @@ To use one resolution in both modes, set it in `nfsmw.toml` (or in the Debug Men
 - `1920x1080`: sharper, at a high GPU cost, above all in handheld mode.
 - `1024x576`, `640x360` and `640x480` only shrink the image after it is drawn at 1280x720, so they do not raise the
   frame rate.
+- `escena_1120x630`, `escena_1024x576` and `escena_960x540` (the deko3d build only, see
+  [docs/HowToDeko3d.md](docs/HowToDeko3d.md)) draw the whole game, scene, effects and HUD, at that size and scale the
+  frame to the screen: 77 %, 64 % and 56 % of the 1280x720 pixels. `escena_960x540` averaged 35 FPS in an 11 minute race
+  at stock clocks. The image is softer, above all the HUD text.
 
 > [!NOTE]
 > If you're having bad performance on Docked and don't want to apply a higher OC + you want more FPS, set the resolution to 1280x720.
@@ -249,6 +253,8 @@ what you want to do. Every technical word is explained in the [glossary](docs/gl
 | [docs/editions.md](docs/editions.md) | How every edition and language of the game is supported |
 | [docs/measuring.md](docs/measuring.md) | How to measure performance on the console without being misled |
 | [docs/performance-history.md](docs/performance-history.md) | How the frame rate went from a few FPS to about 30, step by step |
+| [docs/HowToDeko3d.md](docs/HowToDeko3d.md) | The plan to move the renderer from NVK to deko3d, and what to watch out for |
+| [docs/deko3d-devlog.md](docs/deko3d-devlog.md) | The deko3d work as it happened: each step, each console run, each bug and its cause |
 
 </div>
 

@@ -21,6 +21,7 @@ The settings named on this page go in `nfsmw.toml`, next to the NRO (see [nfsmw.
 - The "robotic" sound was the game's audio server thread arriving late. It took three fixes: a higher priority for
   that thread, native versions of the hottest audio functions, and XMA decoding moved off the game's thread.
 - An intermittent hang of the audio server was fixed with a timeout that also retries.
+- Races have no music: still open (see below).
 - Cutscenes are decoded with FFmpeg instead of the game's own WMV3 decoder, which was far too slow. This includes
   videos re-encoded by fan translations, which the game's decoder cannot play.
 - FFmpeg no longer rebuilds the same math tables for every new sound.
@@ -124,6 +125,34 @@ A timeout alone is not enough: the loop must also retry. The code is in `app/src
 `nfsmw_audio_rescate`, on by default).
 
 **Lesson:** when a failure is intermittent, one run with working audio does not prove that a build is good.
+
+## No music in races (open)
+
+**Symptom:** some races have their engines, crashes and police radio, but no music. Sessions with music (runs 9
+and 10) played a 2-channel track (335-352 MiB of `MW_MUSIC.MUS`); every session without it (runs 7 and 8, the career
+loaded into free roam) played 4-channel streams (495-553 MiB, about 100 s each, two stereo layers). The problem is
+specific to the 4-channel music.
+
+**What is known:** the 4-channel music is read from the disc at the speed it plays, so the game's music player runs;
+the sound is lost after that. The game decodes EA-XA itself, with a family of decoders. `sub_82618D60` decodes the
+2-channel music (it shows in the sound thread's CPU profile when that music plays). `sub_82618788` and `sub_826186B8`,
+called from a different group of functions (`sub_826132xx-826137xx`), are the candidates for the 4-channel streams.
+
+**Ruled out:**
+
+- The runtime's XMP notification (XMP is the console's music player service). Its parameter was inverted
+  (`sdk/src/kernel/xam/apps/xmp_app.cpp`, fixed on 2026-10-10), but the game never sends the message that triggers it.
+- The native resampler, filter and gain sum: validated against the recompiled code with 0 differences (run 8).
+- The output downmix: the stereo fold keeps the surround channels at -3 dB, so music in the rear channels would
+  still be heard.
+
+**Probably by design (2026-10-10, parked):** the sessions without music were the career's prologue, up to the BMW
+being taken; the user reports music starts once free roam is unlocked, which matches the original game's prologue
+using its own score. Not confirmed against an Xbox 360.
+
+**Diagnostic kept:** `nfsmw_audio_diag_musica` hooks the decoder `sub_82618788` and logs, every 10 s, the samples it
+produced and their peak (`[musica]` lines). It has not run yet in a session with 4-channel music. The trail is in
+[deko3d-devlog.md](deko3d-devlog.md).
 
 ## Videos
 
