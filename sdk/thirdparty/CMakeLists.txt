@@ -67,11 +67,14 @@ if(REXGLUE_BUILD_TESTS)
     list(APPEND REQUIRED_SUBMODULES catch2)
 endif()
 
+# nfsmw: the sources come from tools/fetch_thirdparty.py, which copies them without their .git, so a folder with
+# content counts as present.
 foreach(submodule ${REQUIRED_SUBMODULES})
-    if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/${submodule}/.git")
+    file(GLOB _submodule_files "${CMAKE_CURRENT_SOURCE_DIR}/${submodule}/*")
+    if(NOT _submodule_files)
         message(FATAL_ERROR
-            "Git submodule '${submodule}' is not initialized.\n"
-            "Please run: git submodule update --init --recursive\n"
+            "Third-party source '${submodule}' is missing.\n"
+            "Please run: python tools/fetch_thirdparty.py\n"
             "from the repository root directory."
         )
     endif()

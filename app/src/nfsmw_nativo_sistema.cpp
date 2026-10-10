@@ -52,9 +52,16 @@
 #include <rex/system/xvideo.h>
 #include <rex/thread.h>
 #include <rex/ui/presenter.h>
+#if NFSMW_DEKO3D
+// The deko3d build (docs/HowToDeko3d.md): the same ring, PM4 reading and shader identification, with the deko3d
+// provider, presenter and renderer backend instead of the Vulkan ones.
+#include "nfsmw_dk_destinos.h"
+#include "nfsmw_dk_presentador.h"
+#else
 #include <rex/ui/vulkan/device.h>
 #include <rex/ui/vulkan/presenter.h>
 #include <rex/ui/vulkan/provider.h>
+#endif
 #include <rex/ui/windowed_app_context.h>
 
 #if defined(__aarch64__)
@@ -421,7 +428,9 @@ namespace {
 namespace xenos = rex::graphics::xenos;
 using rex::X_STATUS;  // X_STATUS_SUCCESS and X_STATUS_UNSUCCESSFUL need it too
 using Reloj = std::chrono::steady_clock;
+#if !NFSMW_DEKO3D
 using ContextoSalida = rex::ui::vulkan::VulkanPresenter::VulkanGuestOutputRefreshContext;
+#endif
 
 std::atomic<uint64_t> g_swaps_nativos{0};  // SwapsNativos(), for the watchdog
 
@@ -716,12 +725,16 @@ class SistemaGraficoNativo final : public rex::system::IGraphicsSystem {
     }
     app_context_ = app_context;
     if (!provider_) {
+#if NFSMW_DEKO3D
+      provider_ = nfsmw::deko::ProveedorDeko3d::Crear();  // a deko3d failure ends the process, logged
+#else
       // Steps C5c-C6: the XenosRecomp SPIR-V needs capabilities that the VkDevice only
       // enables if they are requested before it is created.
       rex::cvar::SetFlagByName("vulkan_native_shader_features", "true");
       provider_ = rex::ui::vulkan::VulkanProvider::Create(true, true);
+#endif
       if (!provider_) {
-        REXLOG_ERROR("[nativo] No se pudo crear el dispositivo Vulkan");
+        REXLOG_ERROR("[nativo] No se pudo crear el dispositivo grafico");
         return X_STATUS_UNSUCCESSFUL;
       }
     }
@@ -757,7 +770,13 @@ class SistemaGraficoNativo final : public rex::system::IGraphicsSystem {
     }
     // Step C5a: the NFSSPV library sits next to the executable (it is built from the game
     // data, so it is not distributed). Without it the game still runs, without identification.
-    if (shaders_.Cargar(rex::filesystem::GetExecutableFolder() / "nfsmw_shaders.nfsp")) {
+#if NFSMW_DEKO3D
+    // The deko3d library: the same containers and fingerprints, SPIR-V compiled with -DNFSMW_DEKO3D.
+    constexpr const char* kBiblioteca = "nfsmw_shaders_dk.nfsp";
+#else
+    constexpr const char* kBiblioteca = "nfsmw_shaders.nfsp";
+#endif
+    if (shaders_.Cargar(rex::filesystem::GetExecutableFolder() / kBiblioteca)) {
       ActivarGanchos(&shaders_);  // step C5b: shader objects and Draw* records
     }
     ultimo_informe_ = Reloj::now();
@@ -2206,7 +2225,11 @@ class SistemaGraficoNativo final : public rex::system::IGraphicsSystem {
   // Step C2: a draw in copy mode is a resolve and/or a clear.
   bool AsegurarDestinos() {
     if (!destinos_ && !destinos_fallidos_) {
+#if NFSMW_DEKO3D
+      destinos_ = CrearDestinosDeko3d(provider_.get(), memory_);
+#else
       destinos_ = DestinosNativos::Crear(provider_ ? provider_->vulkan_device() : nullptr, memory_);
+#endif
       if (!destinos_) {
         destinos_fallidos_ = true;
         REXLOG_ERROR("[nativo] No se pudieron crear los destinos nativos (C2)");
@@ -3530,6 +3553,11 @@ class SistemaGraficoNativo final : public rex::system::IGraphicsSystem {
         return;
       }
     }
+#if NFSMW_DEKO3D
+    // The deko3d backend always refreshes the guest output itself: before it exists there is nothing to show.
+    (void)swap;
+  }
+#else
     presenter_->RefreshGuestOutput(
         kSalidaAncho, kSalidaAlto, kSalidaAncho, kSalidaAlto,
         [this, swap](rex::ui::Presenter::GuestOutputRefreshContext& contexto) {
@@ -3707,6 +3735,11 @@ class SistemaGraficoNativo final : public rex::system::IGraphicsSystem {
       render_pass_ = VK_NULL_HANDLE;
     }
   }
+#endif
+
+#if NFSMW_DEKO3D
+  void DestruirVulkan() { destinos_.reset(); }  // the backend uses the provider's device: before it
+#endif
 
   // Report lines go to the report thread (NFSMW_INFORME_ANILLO, see InformeDiferido), except the
   // shutdown ones (forzar), which are written right here so they are not lost.
@@ -4503,13 +4536,19 @@ class SistemaGraficoNativo final : public rex::system::IGraphicsSystem {
 
 #undef NFSMW_INFORME_SEGUN
 
+#if !NFSMW_DEKO3D
   struct Framebuffer {
     uint64_t version = UINT64_MAX;
     VkFramebuffer framebuffer = VK_NULL_HANDLE;
   };
+#endif
 
   rex::ui::WindowedAppContext* app_context_ = nullptr;
+#if NFSMW_DEKO3D
+  std::unique_ptr<nfsmw::deko::ProveedorDeko3d> provider_;
+#else
   std::unique_ptr<rex::ui::vulkan::VulkanProvider> provider_;
+#endif
   std::unique_ptr<rex::ui::Presenter> presenter_;
 
   rex::memory::Memory* memory_ = nullptr;
@@ -4865,6 +4904,7 @@ class SistemaGraficoNativo final : public rex::system::IGraphicsSystem {
   uint64_t huella_vs_generacion_ = UINT64_MAX;
   uint64_t dibujos_por_im_load_ = 0;
 
+#if !NFSMW_DEKO3D
   // Vulkan objects for the test image: only the ring thread touches them.
   VkRenderPass render_pass_ = VK_NULL_HANDLE;
   VkCommandPool pool_ = VK_NULL_HANDLE;
@@ -4874,6 +4914,7 @@ class SistemaGraficoNativo final : public rex::system::IGraphicsSystem {
   std::array<Framebuffer, rex::ui::vulkan::VulkanPresenter::kMaxActiveGuestOutputImageVersions>
       framebuffers_{};
   size_t siguiente_framebuffer_ = 0;
+#endif
 };
 
 }  // namespace
@@ -4883,7 +4924,11 @@ uint64_t SwapsNativos() {
 }
 
 bool Activo() {
+#if NFSMW_DEKO3D
+  return true;  // the deko3d build has no Xenos emulation plugin
+#else
   return REXCVAR_GET(nfsmw_renderizador) == "nativo";
+#endif
 }
 
 std::unique_ptr<rex::system::IGraphicsSystem> CrearSistemaGrafico() {

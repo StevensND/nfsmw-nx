@@ -26,6 +26,7 @@
 // Everything is used only by the native system's PM4 ring thread: no locks.
 
 #include "nfsmw_nativo_destinos.h"
+#include "nfsmw_nativo_dibujos.h"
 #include "nfsmw_esperas_tiron.h"
 #include "nfsmw_nativo_shaders.h"  // Samplers of the PS (nfsmw_nativo_diag_lectores_s)
 #include "nfsmw_reflejo_demanda.h"  // road reflection only when it is read

@@ -101,13 +101,19 @@ endfunction()
 # rex_resolve_version(<out_var>
 #     FLOOR_MAJOR <int>
 #     FLOOR_MINOR <int>
-#     [SOURCE_DIR <path>])    # defaults to CMAKE_SOURCE_DIR
+#     [SOURCE_DIR <path>]     # defaults to CMAKE_SOURCE_DIR
+#     [NO_GIT])               # nfsmw: the floor version, without asking git
 #
 # Runs git in the working tree, then delegates to rex_compute_version.
 #==========================================================
 function(rex_resolve_version out_var)
     set(one_value FLOOR_MAJOR FLOOR_MINOR SOURCE_DIR)
-    cmake_parse_arguments(ARG "" "${one_value}" "" ${ARGN})
+    cmake_parse_arguments(ARG "NO_GIT" "${one_value}" "" ${ARGN})
+
+    if(ARG_NO_GIT)
+        set(${out_var} "${ARG_FLOOR_MAJOR}.${ARG_FLOOR_MINOR}.0.0-dev.unknown" PARENT_SCOPE)
+        return()
+    endif()
 
     if(NOT ARG_SOURCE_DIR)
         set(ARG_SOURCE_DIR "${CMAKE_SOURCE_DIR}")

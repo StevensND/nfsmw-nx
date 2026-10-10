@@ -1153,6 +1153,85 @@ void ShaderRecompiler::recompile(const AluInstruction& instr)
     cerrarSiEscribePredicado(marcaPredicado);
 }
 
+#ifdef NFSMW_RECOMP
+void ShaderRecompiler::printDeko3dConstants(const ConstantTableContainer* constantTableContainer)
+{
+    for (uint32_t i = 0; i < constantTableContainer->constantTable.constants; i++)
+    {
+        const auto constantInfo = reinterpret_cast<const ConstantInfo*>(
+            constantTableData + constantTableContainer->constantTable.constantInfo + i * sizeof(ConstantInfo));
+
+        const char* constantName = reinterpret_cast<const char*>(constantTableData + constantInfo->name);
+
+        switch (constantInfo->registerSet)
+        {
+        case RegisterSet::Float4:
+        {
+            const char* shaderName = isPixelShader ? "Pixel" : "Vertex";
+
+            if (constantInfo->registerCount > 1)
+            {
+                uint32_t tailCount = (isPixelShader ? 224 : 256) - constantInfo->registerIndex;
+                println("#define {}(INDEX) select((INDEX) < {}, g_Ubo{}.v[{} + min(INDEX, {})], 0.0)",
+                    constantName, tailCount, shaderName, constantInfo->registerIndex.get(), tailCount - 1);
+            }
+            else
+            {
+                println("#define {} g_Ubo{}.v[{}]", constantName, shaderName, constantInfo->registerIndex.get());
+            }
+            break;
+        }
+
+        case RegisterSet::Sampler:
+        {
+            // One texture per register with the type the constant table gives it (as the renderer reads it:
+            // nfsmw_nativo_shaders.cpp), at binding R; its sampler at binding R too (another set: GLSL's
+            // combined sampler takes the texture's binding, nfsmw_dk_glsl.cpp). deko3d has 32 texture
+            // bindings per stage: 0-15 for the registers and 16-31 for the pairs of the 2D ones.
+            const uint32_t reg = constantInfo->registerIndex;
+            const auto typeInfo = reinterpret_cast<const TypeInfo*>(constantTableData + constantInfo->typeInfo);
+            const char* dimension = "2D";
+            switch (typeInfo->parameterType)
+            {
+            case ParameterType::Texture3D:
+            case ParameterType::Sampler3D:
+                dimension = "3D";
+                break;
+            case ParameterType::TextureCube:
+            case ParameterType::SamplerCube:
+                dimension = "Cube";
+                break;
+            default:
+                break;
+            }
+
+            if (reg >= 16)
+                println("#error \"{}: sampler register {} has no deko3d binding (0-15)\"", constantName, reg);
+
+            println("[[vk::binding({}, 0)]] Texture{}<float4> {}_Textura;", reg, dimension, constantName);
+            println("[[vk::binding({}, 1)]] SamplerState {}_Muestreo;", reg, constantName);
+            println("#define {0}_Texture{1}DescriptorIndex {0}_Textura", constantName, dimension);
+            println("#define {0}_SamplerDescriptorIndex {0}_Muestreo", constantName);
+            if (strcmp(dimension, "2D") == 0)
+            {
+                // tfetch2DSombraMin's pair arrives in the 3D index word of the same register.
+                println("[[vk::binding({}, 0)]] Texture2D<float4> {}_Pareja;", 16 + reg, constantName);
+                println("#define {0}_Texture3DDescriptorIndex {0}_Pareja", constantName);
+            }
+
+            const uint32_t invBase = 360 + reg * 8;
+            println("#define {}_InvTamano float2(NFSMW_COMPARTIDA_FLOAT({}), NFSMW_COMPARTIDA_FLOAT({}))",
+                constantName, invBase, invBase + 4);
+            break;
+        }
+
+        default:
+            break;
+        }
+    }
+}
+#endif
+
 void ShaderRecompiler::recompile(const uint8_t* shaderData, const std::string_view& include)
 {
     const auto shaderContainer = reinterpret_cast<const ShaderContainer*>(shaderData);
@@ -1173,6 +1252,12 @@ void ShaderRecompiler::recompile(const uint8_t* shaderData, const std::string_vi
     constantTableData = reinterpret_cast<const uint8_t*>(&constantTableContainer->constantTable);
 
     out += "#ifdef __spirv__\n\n";
+
+#ifdef NFSMW_RECOMP
+    // NFSMW_DEKO3D (shader_common.h): the same constants for deko3d, written after this block. Without the
+    // define DXC sees exactly what it saw before that mode existed.
+    out += "#ifndef NFSMW_DEKO3D\n\n";
+#endif
 
 #ifdef UNLEASHED_RECOMP
     bool isMetaInstancer = false;
@@ -1255,6 +1340,12 @@ void ShaderRecompiler::recompile(const uint8_t* shaderData, const std::string_vi
 
         }
     }
+
+#ifdef NFSMW_RECOMP
+    out += "\n#else\n\n";
+    printDeko3dConstants(constantTableContainer);
+    out += "\n#endif\n";
+#endif
 
     out += "\n#else\n\n";
 

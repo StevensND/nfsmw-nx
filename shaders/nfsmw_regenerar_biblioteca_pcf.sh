@@ -149,4 +149,27 @@ py "$SALIDA/marca_sombra_minimo.py" "$SALIDA" || { echo "Falta la marca de tfetc
 "$RAIZ/nfsmw_probar_biblioteca.exe" "$SALIDA/nfsmw_shaders.nfsp" "$ENTRADA" > "$SALIDA/biblioteca.log" \
   || { echo "Fallo de regresion de biblioteca; ver biblioteca.log"; exit 1; }
 ls -la "$SALIDA/nfsmw_shaders.nfsp"
+
+# DEKO3D=1: also the deko3d library (docs/HowToDeko3d.md, section 3): the same rewritten HLSL compiled with
+# -DNFSMW_DEKO3D and without -fvk-invert-y (deko3d's clip-space y points up, as in Direct3D), packed the same way.
+# DKSH=path/to/nfsmw_dksh (shaders/dksh) then compiles it to a DKSH cache and checks every variant.
+if [ "${DEKO3D:-0}" = 1 ]; then
+  mkdir -p "$SALIDA/spirv_dk"
+  : > "$SALIDA/dxc_dk.log"
+  for f in "$SALIDA"/hlsl/*.hlsl; do
+    base=$(basename "$f" .hlsl)
+    if [[ "$base" == p_* ]]; then tipo=ps_6_6; else tipo=vs_6_6; fi
+    "$DXC" -spirv -T "$tipo" -E main -HV 2021 -fspv-target-env=vulkan1.2 -fvk-use-dx-layout \
+      -Werror=parameter-usage -DNFSMW_DEKO3D -Fo "$SALIDA/spirv_dk/$base.spv" "$f" \
+      2>> "$SALIDA/dxc_dk.log" || { echo "DXC rechazo $base para deko3d"; exit 1; }
+  done
+  "$RAIZ/nfsmw_empaquetar.exe" "$ENTRADA" "$SALIDA/spirv_dk" "$SALIDA/nfsmw_shaders_dk.nfsp" > "$SALIDA/paquete_dk.log" \
+    || { echo "Fallo al empaquetar la biblioteca de deko3d; ver paquete_dk.log"; exit 1; }
+  ls -la "$SALIDA/nfsmw_shaders_dk.nfsp"
+  if [ -n "${DKSH:-}" ]; then
+    "$DKSH" "$SALIDA/nfsmw_shaders_dk.nfsp" "$SALIDA/shadercache_dksh.bin" --contenedores "$ENTRADA" \
+      --informe "$SALIDA/dksh.tsv" > "$SALIDA/dksh.log" || { echo "Hay variantes sin DKSH; ver dksh.log"; exit 1; }
+    tail -7 "$SALIDA/dksh.log"
+  fi
+fi
 echo "regeneracion completada"

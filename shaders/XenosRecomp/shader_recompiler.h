@@ -229,4 +229,11 @@ struct ShaderRecompiler : StringBuffer
     void recompile(const AluInstruction& instr);
 
     void recompile(const uint8_t* shaderData, const std::string_view& include);
+
+#ifdef NFSMW_RECOMP
+    // The #else of the constants block under NFSMW_DEKO3D: the float constants from the UBOs only, and each
+    // sampler register as a texture and a sampler at fixed bindings (shader_common.h). Text only: the maps
+    // above are filled by the Vulkan block.
+    void printDeko3dConstants(const ConstantTableContainer* constantTableContainer);
+#endif
 };

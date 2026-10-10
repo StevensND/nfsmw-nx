@@ -24,6 +24,9 @@ option(REXGLUE_ENABLE_FIDELITYFX "Enable optional AMD FidelityFX integration (ex
 option(REXGLUE_ENABLE_TRACY                "Enable Tracy profiler integration" ON)
 option(REXGLUE_ENABLE_PERF_COUNTERS        "Enable lightweight perf counter registry and overlay" ON)
 option(REXGLUE_PLATFORM_SWITCH             "Build for Nintendo Switch (devkitA64 + libnx; set by the toolchain file)" OFF)
+# nfsmw: the Switch build for the title's own deko3d renderer (docs/HowToDeko3d.md): no Vulkan, no NVK and no
+# GPU plugin in the SDK; the title brings its graphics system, presenter and UI drawer.
+option(REXGLUE_SWITCH_DEKO3D               "Switch: build for a title-provided deko3d renderer, without Vulkan or NVK" OFF)
 # Propagate profiling defines globally (compiled out in Release)
 if(REXGLUE_ENABLE_TRACY)
     add_compile_definitions($<$<NOT:$<CONFIG:Release>>:REXGLUE_ENABLE_PROFILING>)
@@ -43,7 +46,13 @@ else()
     option(REXGLUE_USE_VULKAN "Enable Vulkan graphics backend" ON)
 endif()
 
-if(NOT REXGLUE_USE_D3D12 AND NOT REXGLUE_USE_VULKAN)
+if(REXGLUE_SWITCH_DEKO3D AND NOT REXGLUE_PLATFORM_SWITCH)
+    message(FATAL_ERROR "REXGLUE_SWITCH_DEKO3D is for the Nintendo Switch build only")
+endif()
+if(REXGLUE_SWITCH_DEKO3D AND REXGLUE_USE_VULKAN)
+    message(FATAL_ERROR "REXGLUE_SWITCH_DEKO3D needs REXGLUE_USE_VULKAN=OFF (switch-devkitA64.cmake sets it)")
+endif()
+if(NOT REXGLUE_USE_D3D12 AND NOT REXGLUE_USE_VULKAN AND NOT REXGLUE_SWITCH_DEKO3D)
     message(FATAL_ERROR "At least one graphics backend must be enabled (REXGLUE_USE_D3D12 or REXGLUE_USE_VULKAN)")
 endif()
 
@@ -204,9 +213,12 @@ add_compile_definitions(REXGLUE_BUILD_CONFIG="$<CONFIG>")
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/rex_pch.cmake)
 
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/rex_version.cmake)
+# nfsmw: this SDK is a folder of the port's repository, whose tags (v1.0.0, ...) are the port's releases, not
+# the SDK's: they made the floor check fail. The version is the project's (0.10).
 rex_resolve_version(REXGLUE_FULL_VERSION
     FLOOR_MAJOR ${PROJECT_VERSION_MAJOR}
-    FLOOR_MINOR ${PROJECT_VERSION_MINOR})
+    FLOOR_MINOR ${PROJECT_VERSION_MINOR}
+    NO_GIT)
 
 # Strip the -id trailer (if any) for the numeric-only version.
 string(REGEX REPLACE "-.*$" "" REXGLUE_NUMERIC_VERSION "${REXGLUE_FULL_VERSION}")

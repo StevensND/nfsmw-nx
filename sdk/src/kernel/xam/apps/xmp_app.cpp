@@ -383,13 +383,29 @@ X_HRESULT XmpApp::DispatchMessageSync(uint32_t message, uint32_t buffer_ptr,
       }* args = memory_->TranslateVirtual<decltype(args)>(buffer_ptr);
       static_assert_size(decltype(*args), 12);
 
-      assert_true((args->xmp_client == 0x00000002 && args->controller == 0x00000000) ||
+      // nfsmw: XMPRestoreBackgroundMusic sends (2, 4, 0) on this kernel version.
+      assert_true((args->xmp_client == 0x00000002 &&
+                   (args->controller == 0x00000000 || args->controller == 0x00000004)) ||
                   (args->xmp_client == 0x00000000 && args->controller == 0x00000001));
       REXKRNL_DEBUG("XMPSetPlaybackController({:08X}, {:08X})", uint32_t(args->controller),
                     uint32_t(args->playback_client));
 
       playback_client_ = PlaybackClient(uint32_t(args->playback_client));
-      kernel_state_->BroadcastNotification(kMsgPlaybackControllerChanged, !args->playback_client);
+      // nfsmw: the parameter of XN_XMP_PLAYBACKCONTROLLERCHANGED says whether the title may play
+      // its own music, the same thing XMPTitleHasPlaybackControl answers (TRUE here, from
+      // XMPGetPlaybackController's 0/0). It was !playback_client, so XMPOverrideBackgroundMusic
+      // (2, 0, 1), the title taking control, told the game that the user's music had it: NFS MW
+      // copies that parameter into its flag (sub_825E3230, flag at 0x828F6018), fades its music
+      // out and then clears the music buffer on every pass, so races had no music while the
+      // stream kept being read and decoded. There is no system music player here, so the title
+      // has control unless the system player is the one playing.
+      const bool title_has_control =
+          playback_client_ == PlaybackClient::kTitle || state_ != State::kPlaying;
+      REXKRNL_INFO("[xmp] XMPSetPlaybackController({}, {}, {}) -> el titulo controla la musica: {}",
+                   uint32_t(args->xmp_client), uint32_t(args->controller),
+                   uint32_t(args->playback_client), title_has_control ? 1 : 0);
+      kernel_state_->BroadcastNotification(kMsgPlaybackControllerChanged,
+                                           title_has_control ? 1u : 0u);
       return X_E_SUCCESS;
     }
     case 0x0007001B: {

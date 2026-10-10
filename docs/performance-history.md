@@ -20,6 +20,7 @@ the performance configuration described in step 5) and 768 MHz docked; the memor
 | 6. Direct calls, LTO, PGO and function ordering | about 34 FPS |
 | 7. Native versions of the hottest game functions | 35.4 FPS |
 | 8. The released build | 32 to 35 FPS, depending on the area |
+| 9. A deko3d renderer instead of NVK (branch `deko3d-implementation`, in progress) | 29-32 FPS at stock clocks, no pipeline stalls; 35 FPS with the scene drawn at 960x540 |
 
 ## 1. The emulated GPU: 1-3 FPS
 
@@ -154,6 +155,45 @@ half a frame per second.
 
 The released build averages 32 to 35 FPS in races, depending on the area. The heaviest place measured is the exit of
 Heritage Heights, with about 3,000 draws per frame: it runs at 21-22 FPS for its first 20 seconds or so.
+
+## 9. The deko3d renderer (in progress)
+
+The NVK driver is a Vulkan implementation written for desktop GPUs, running on the Switch's GPU. Its costs on the
+Switch are the pipeline objects (a draw with a state the game has not used yet makes the ring thread create one, 49 ms
+on average in the cold-cache session below), the work NVK does inside each draw, and the size of the Mesa build. The
+alternative is deko3d, the console's own graphics library: no pipeline objects, no driver to carry. The shaders are
+compiled ahead of time into the console's native format. How it was built, run by run, is in
+[deko3d-devlog.md](deko3d-devlog.md); the plan is in [HowToDeko3d.md](HowToDeko3d.md).
+
+All numbers below are from the console at stock clocks (CPU 1020 MHz, GPU 307.2 MHz, memory 1331.2 MHz), in handheld
+mode. The frame rate is counted from the `[recortes] carrera` line that both builds print every 10 seconds in a race;
+slow frames from the `intervalos entre Swaps` histogram. The Mesa sessions are the released v1.0.0 build.
+
+**Same save and same race, one session after the other:**
+
+| | deko3d | Mesa (NVK) |
+|---|---|---|
+| First pair (deko3d at its first race-ready build): FPS in the race | 27.7 average, 21.9 lowest, 23.3 the 10th percentile (31 windows of 10 s) | 26.2 average, 15.2 lowest, 20.8 the 10th percentile (14 windows) |
+| Frames of 100 ms or more | 1.0 per minute, the worst 834 ms | 4.5 per minute, the worst 2,533 ms |
+| Frames of 50 ms or more | 28.8 per minute | 44.0 per minute |
+| Pipelines created by the ring thread | none: nothing to create | 151, 49.0 ms each on average (cold pipeline cache) |
+| Second pair (deko3d with the third batch, Mesa with a warm pipeline cache): FPS in the race | 32.3 average, 24.9 lowest, 28.7 the 10th percentile (43 windows) | 29.2 average, 27.2 lowest (only 9 windows) |
+| Frames of 100 ms or more | 1.1 per minute | 1.0 per minute (60 s of racing); 8 new pipelines still cost 50.3 ms each |
+
+**What is not better yet.** The GPU time per frame at 1280x720 (22.6-29.5 ms in the later deko3d sessions) is not below
+NVK's 19-24 ms, and the cost of recording a draw (8-14 µs) is the same as NVK's best figures (9-21 µs). The heaviest
+windows (2,900-3,700 draws per frame, the first half minute of the Heritage race) run at 20.8-23.4 FPS on deko3d, as
+the exit of Heritage Heights does on NVK (21-22 FPS, section 8). The frame-rate gain at the game's own resolution
+comes from the stalls and the lower floor, not from a faster average.
+
+**What is new.** The internal-resolution choices `escena_1120x630`, `escena_1024x576` and `escena_960x540` really
+draw the scene, the post-processing, the HUD and the front buffer at that size (the old `1024x576` only shrank the
+image after drawing it at 1280x720). At `escena_960x540`: **35.2 FPS on average** in an 11 minute race (59 windows,
+28.0-47.7, 0.6 frames of 100 ms or more per minute), GPU 24.6 ms per frame, against 28.8-30.9 FPS at 1280x720 in the
+deko3d sessions before it. Those are different sessions, not the same race twice. Only the deko3d build offers these
+choices for now.
+
+**Size.** The deko3d NRO is 39.9 MB, the Mesa one 63.0 MB (-37 %).
 
 ## Lessons
 

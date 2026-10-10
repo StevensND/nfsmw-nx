@@ -131,3 +131,7 @@ if(REXGLUE_USE_VULKAN)
     )
     target_compile_definitions(rexruntime PUBLIC REX_HAS_VULKAN=1)
 endif()
+if(REXGLUE_SWITCH_DEKO3D)
+    # The title's deko3d renderer: no GPU plugin linked (gpu_plugin_loader.cpp).
+    target_compile_definitions(rexruntime PRIVATE REXGLUE_SWITCH_DEKO3D=1)
+endif()

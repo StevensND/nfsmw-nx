@@ -7,13 +7,31 @@
 #       packages <target>.nro next to the executable
 #
 # Requires the switch-devkitA64.cmake toolchain (DEVKITPRO, compiler, specs) and
-# REXGLUE_SWITCH_NVK_SDK pointing at the Mesa Horizon SDK.
+# REXGLUE_SWITCH_NVK_SDK pointing at the Mesa Horizon SDK. With
+# REXGLUE_SWITCH_DEKO3D the title brings a deko3d renderer instead: no Mesa SDK,
+# no GPU plugin, and deko3d (devkitPro's package) is linked.
 #==========================================================
 include_guard(GLOBAL)
 
 set(REXGLUE_SWITCH_NVK_SDK "" CACHE PATH
     "portlibs/switch directory of the Mesa Horizon SDK (static NVK driver)")
-if(NOT EXISTS "${REXGLUE_SWITCH_NVK_SDK}/lib/libvulkan.a")
+option(REXGLUE_SWITCH_DEKO3D_DEBUG
+    "deko3d build: link deko3d's debug library (libdeko3dd: every call checked, readable errors)" OFF)
+if(REXGLUE_SWITCH_DEKO3D)
+    # The GPU library of the title: deko3d. rex::switch_gpu is what the title links.
+    if(NOT TARGET rex::switch_gpu)
+        add_library(rexglue_switch_gpu INTERFACE)
+        add_library(rex::switch_gpu ALIAS rexglue_switch_gpu)
+        if(REXGLUE_SWITCH_DEKO3D_DEBUG)
+            set(_deko3d deko3dd)
+        else()
+            set(_deko3d deko3d)
+        endif()
+        target_link_directories(rexglue_switch_gpu INTERFACE "${DEVKITPRO}/libnx/lib")
+        target_link_libraries(rexglue_switch_gpu INTERFACE ${_deko3d} nx stdc++ m)
+        target_link_options(rexglue_switch_gpu INTERFACE -pthread)
+    endif()
+elseif(NOT EXISTS "${REXGLUE_SWITCH_NVK_SDK}/lib/libvulkan.a")
     message(FATAL_ERROR
         "REXGLUE_SWITCH_NVK_SDK must point at <mesa-...-horizon-sdk>/opt/devkitpro/portlibs/switch "
         "(no lib/libvulkan.a under '${REXGLUE_SWITCH_NVK_SDK}')")
@@ -24,9 +42,10 @@ endif()
 # instead; the NVIDIA CUBIN parser that uses libelf never runs on Switch.
 # Listed twice for archive rescanning, as the Mesa config does without
 # LINK_GROUP support.
-if(NOT TARGET rex::nvk)
+if(NOT REXGLUE_SWITCH_DEKO3D AND NOT TARGET rex::nvk)
     add_library(rexglue_switch_nvk INTERFACE)
     add_library(rex::nvk ALIAS rexglue_switch_nvk)
+    add_library(rex::switch_gpu ALIAS rexglue_switch_nvk)
     target_link_directories(rexglue_switch_nvk INTERFACE
         "${REXGLUE_SWITCH_NVK_SDK}/lib"
         "${DEVKITPRO}/portlibs/switch/lib"
@@ -48,9 +67,14 @@ endif()
 #   switch_crash_hooks.c  abort()/exit() reports and stderr to the SD; abort
 #                       must be defined before libc.a is searched
 if(NOT TARGET rexglue_switch_startup)
+    if(REXGLUE_SWITCH_DEKO3D)
+        set(_switch_elf_stubs)  # only Mesa needs them
+    else()
+        set(_switch_elf_stubs "${CMAKE_CURRENT_LIST_DIR}/../src/ui/switch_elf_stubs.c")
+    endif()
     add_library(rexglue_switch_startup OBJECT
         "${CMAKE_CURRENT_LIST_DIR}/../src/ui/runtime_switch.cpp"
-        "${CMAKE_CURRENT_LIST_DIR}/../src/ui/switch_elf_stubs.c"
+        ${_switch_elf_stubs}
         "${CMAKE_CURRENT_LIST_DIR}/../src/ui/switch_crash_hooks.c"
         "${CMAKE_CURRENT_LIST_DIR}/../src/ui/switch_perf.cpp"
         # FPS and resolution for the console overlays (SaltyNX) and Reverse-NX reading.
@@ -106,7 +130,7 @@ function(rexglue_switch_configure_target target_name)
     set_property(TARGET ${target_name} APPEND PROPERTY LINK_DEPENDS ${_whole})
     # Still linked normally, for the build order and their own dependencies
     # (glslang, FFmpeg, ...), which stay regular archives.
-    target_link_libraries(${target_name} PRIVATE ${_libs} rex::nvk)
+    target_link_libraries(${target_name} PRIVATE ${_libs} rex::switch_gpu)
 
     # rex_app.cpp includes imgui.h. rexruntime links imgui privately, so its
     # include path does not reach the title; take the path alone, since imgui's

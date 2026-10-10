@@ -23,8 +23,20 @@ REXCVAR_DEFINE_STRING(nfsmw_resolucion_interna, "automatico", "Graficos",
                       "que DIBUJA el juego -sigue en 1280x720- sino solo el tamano al que se encoge al resolver. "
                       "Lo que ahorra es el posproceso, las copias y el cubo; la escena no se mueve. De 1280x720 a "
                       "1024x576 son 2,14 ms reales y el posproceso ya baja a 0,03, asi que por debajo queda poco "
-                      "que rascar y el escalado si se ve")
-    .allowed({"automatico", "1280x720", "1920x1080", "1024x576", "640x360", "640x480"});
+                      "que rascar y el escalado si se ve"
+#if NFSMW_DEKO3D
+                      ". escena_1120x630, escena_1024x576 y escena_960x540 SI bajan la resolucion a la que dibuja el "
+                      "juego: la escena, el posproceso, el HUD y el bufer frontal (por el mismo camino que el "
+                      "1080p), y el presentador lo escala a la pantalla; 77 %, 64 % y 56 % de los pixeles (piden "
+                      "reiniciar). Solo en la build de deko3d: la de Vulkan crea las texturas resueltas con el ancho "
+                      "de su pitch, y con anchos que no son multiplo de 32 el posproceso sale corrido a la izquierda"
+#endif
+                      )
+    .allowed({"automatico", "1280x720", "1920x1080", "1024x576", "640x360", "640x480"
+#if NFSMW_DEKO3D
+              , "escena_1120x630", "escena_1024x576", "escena_960x540"
+#endif
+             });
 
 /*
  * GPU MHz in handheld mode.
@@ -264,7 +276,9 @@ void AplicarAjustesGraficos() {
   // 720p, which is what is presented. Setting the video mode to 1920x1080 so that the game's front buffer
   // would grow with it was tried and does not work: the front buffer is registered earlier and stays at
   // 1280x720.
-  const bool interno_1080p = resolucion == "1920x1080" || resolucion == "automatico";
+  // The escena_WxH choices go through the same path as 1080p (nfsmw_render_targets.cpp): the video mode stays 720p.
+  const bool reducida = resolucion.rfind("escena_", 0) == 0;
+  const bool interno_1080p = resolucion == "1920x1080" || resolucion == "automatico" || reducida;
   const std::string modo_video = interno_1080p ? std::string("1280x720") : resolucion;
   const size_t x = modo_video.find('x');
   if (x != std::string::npos) {
@@ -298,6 +312,9 @@ void AplicarAjustesGraficos() {
     if (resolucion == "1920x1080") {
       ancho = 1920;
       alto = 1080;
+    } else if (reducida) {
+      ancho = unsigned(std::strtoul(resolucion.c_str() + 7, nullptr, 10));
+      alto = unsigned(std::strtoul(resolucion.c_str() + resolucion.find('x') + 1, nullptr, 10));
     }
     if (ancho && alto) {
       RexSwitchPerfResolution(ancho, alto);  // for the console overlay

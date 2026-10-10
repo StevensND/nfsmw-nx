@@ -52,3 +52,5 @@ This is the path the game follows, from the Xbox 360 disc to the Switch screen:
 | [editions.md](editions.md) | How every edition and language of the game is supported |
 | [measuring.md](measuring.md) | How to measure performance on the console without being misled |
 | [performance-history.md](performance-history.md) | How the frame rate went from a few FPS to about 30, step by step |
+| [HowToDeko3d.md](HowToDeko3d.md) | The plan to move the renderer from NVK to deko3d, and what to watch out for |
+| [deko3d-devlog.md](deko3d-devlog.md) | The deko3d work as it happened: each step, each console run, each bug and its cause |
