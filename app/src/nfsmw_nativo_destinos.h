@@ -8,7 +8,7 @@
 
 #pragma once
 
-#include "nfsmw_nativo_dibujos.h"
+#include "nfsmw_nativo_peticion.h"
 
 #include <array>
 #include <cstdint>

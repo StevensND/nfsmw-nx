@@ -60,6 +60,7 @@
 #include <atomic>
 #include <chrono>
 #include <cstdint>
+#include <cstdlib>
 #include <cstring>
 #include <string>
 
@@ -74,6 +75,8 @@
 #include <rex/hook.h>
 #include <rex/logging.h>
 #include <rex/platform.h>
+
+#include "nfsmw_nativo_xenos.h"
 
 REXCVAR_DEFINE_BOOL(nfsmw_render_sin_mosaico, REX_PLATFORM_SWITCH != 0, "NFSMW",
                     "Dibujar la escena una sola vez, sin tiling de 3 tiras ni MSAA "
@@ -126,10 +129,58 @@ constexpr uint32_t kOffMsaa = 76;
 constexpr uint32_t kOffRects = 100;
 constexpr uint32_t kBytesPorModoRects = 64;  // 4 D3DRECT de 16 bytes
 constexpr uint32_t kModoSinAa = 2;
-constexpr uint32_t kModo1080p = 4;  // its set becomes the 1920x1088 one
-constexpr uint32_t kAncho1080p = 1920;
-constexpr uint32_t kAlto1080p = 1088;   // 1080 rounded up to a multiple of 32, like its own 720 -> 736
-constexpr uint32_t kVisible1080p = 1080;
+constexpr uint32_t kModo1080p = 4;  // its set becomes the 1920x1088 one, or the reduced scene's
+
+/*
+ * Mode 4's size. By default the 1080p one: 1920x1088 (1080 rounded up to a multiple of 32, like the game's own
+ * 720 -> 736) with 1920x1080 visible, output mode 3.
+ *
+ * With nfsmw_resolucion_interna = escena_WxH (handheld performance choices), the same path at a smaller size: mode
+ * 4 becomes W x H rounded up to 32 rows, and the front buffer and the game's logical screen size become W x H too,
+ * exactly as the 1080p path raises them. So the scene, the post-processing chain, the HUD and the front buffer are
+ * all drawn at W x H, consistent with each other, and the presenter scales the finished frame to the screen. Output
+ * mode 2 (the HD 16:9 one): only 1080p uses 3. Decided at startup (the front buffer is created once).
+ */
+struct TamanoModo4 {
+  uint32_t ancho = 1920, alto = 1088, visible = 1080, modo_salida = 3;
+  bool reducida = false;  // an escena_WxH choice
+};
+
+TamanoModo4 LeerTamanoModo4() {
+  TamanoModo4 t;
+#if !NFSMW_DEKO3D
+  // Only the deko3d build creates its resolved textures at the resolve's width (nfsmw_dk_destinos.cpp, Copiar): the
+  // Vulkan path uses the copy destination's pitch, and a scene width that is not a multiple of 32 in the
+  // post-processing chain shifts its effects to the left.
+  return t;
+#endif
+  const std::string r = REXCVAR_GET(nfsmw_resolucion_interna);
+  constexpr const char kPrefijo[] = "escena_";
+  if (r.rfind(kPrefijo, 0) != 0) {
+    return t;
+  }
+  const size_t x = r.find('x', sizeof(kPrefijo) - 1);
+  if (x == std::string::npos) {
+    return t;
+  }
+  const uint32_t ancho = uint32_t(std::strtoul(r.c_str() + sizeof(kPrefijo) - 1, nullptr, 10));
+  const uint32_t alto = uint32_t(std::strtoul(r.c_str() + x + 1, nullptr, 10));
+  // Widths in multiples of 32 (the game's own are), heights within the 720p ones.
+  if (ancho < 640 || ancho > 1280 || (ancho & 31) || alto < 360 || alto > 720) {
+    return t;
+  }
+  t.ancho = ancho;
+  t.visible = alto;
+  t.alto = (alto + 31) & ~31u;
+  t.modo_salida = 2;
+  t.reducida = true;
+  return t;
+}
+
+const TamanoModo4& Modo4() {
+  static const TamanoModo4 t = LeerTamanoModo4();
+  return t;
+}
 
 // The four video size globals that sub_82441990 hard-codes to 1280/720, next to the output mode variable
 // (0x82A2CF80). The game's front buffer size is taken from them (see below).
@@ -138,7 +189,7 @@ constexpr uint32_t kGlobalAlto0 = 0x82A2CF6C;
 constexpr uint32_t kGlobalAncho1 = 0x82A2CF70;
 constexpr uint32_t kGlobalAlto1 = 0x82A2CF74;
 constexpr uint32_t kGlobalModoSalida = 0x82A2CF80;
-constexpr uint32_t kModoSalida1080p = 3;  // su tabla: 0 -> 640x480, 2 -> 1280x720, 3 -> 1920x1080
+// The output mode global: its table 0 -> 640x480, 2 -> 1280x720, 3 -> 1920x1080 (Modo4().modo_salida).
 
 // Puntero global al renderizador (lis r11,-32093 / lwz -11860).
 constexpr uint32_t kRenderizadorGlobal = 0x82A2D1AC;
@@ -227,20 +278,24 @@ void IgualarModosAlModoSinAa(uint8_t* base, uint32_t obj) {
     std::memcpy(base + obj + kOffRects + kBytesPorModoRects * m, base + rect2, 16);
   }
 
+  if (Modo4().reducida) {
+    nfsmw::nativo::g_ancho_escena.store(Modo4().ancho, std::memory_order_relaxed);
+  }
   // And mode 4 becomes the 1080p one, with its own set. That way the resolution changes live by choosing
   // mode 2 or mode 4, without registering anything again.
   {
     const uint32_t rect4 = obj + kOffRects + kBytesPorModoRects * kModo1080p;
     Escribir32(base, obj + kOffTiras + 4 * kModo1080p, 1);
-    Escribir32(base, obj + kOffAncho + 4 * kModo1080p, kAncho1080p);
-    Escribir32(base, obj + kOffAlto + 4 * kModo1080p, kAlto1080p);
+    Escribir32(base, obj + kOffAncho + 4 * kModo1080p, Modo4().ancho);
+    Escribir32(base, obj + kOffAlto + 4 * kModo1080p, Modo4().alto);
     Escribir32(base, obj + kOffMsaa + 4 * kModo1080p, 0);
     Escribir32(base, rect4 + 0, 0);
     Escribir32(base, rect4 + 4, 0);
-    Escribir32(base, rect4 + 8, kAncho1080p);
-    Escribir32(base, rect4 + 12, kVisible1080p);
-    REXLOG_INFO("[resolucion] modo {} preparado a {}x{} (area visible {}x{}): es el de sobremesa", kModo1080p,
-                kAncho1080p, kAlto1080p, kAncho1080p, kVisible1080p);
+    Escribir32(base, rect4 + 8, Modo4().ancho);
+    Escribir32(base, rect4 + 12, Modo4().visible);
+    REXLOG_INFO("[resolucion] modo {} preparado a {}x{} (area visible {}x{}): {}", kModo1080p, Modo4().ancho,
+                Modo4().alto, Modo4().ancho, Modo4().visible,
+                Modo4().reducida ? "la escena reducida (nfsmw_resolucion_interna)" : "es el de sobremesa");
   }
 
   REXLOG_INFO("[render] modos 3-5 igualados al modo 2: 1 tira {}x{} sin MSAA "
@@ -286,7 +341,7 @@ bool EnSobremesa() {
 std::atomic<int> g_salida_latch{-1};
 
 /*
- * The mode to use: 2 (1280x720) or 4 (1920x1080).
+ * The mode to use: 2 (1280x720) or 4 (1920x1080, or the reduced scene of an escena_WxH choice).
  *
  * The output latch decides, not the current Reverse-NX mode.
  *
@@ -314,13 +369,13 @@ uint32_t ModoQueToca() {
         REXLOG_INFO("[resolucion] Reverse-NX dice {} pero la salida del juego ya se creo para {}: la "
                     "resolucion interna NO cambia en marcha, hay que reiniciar el juego",
                     sobremesa ? "sobremesa" : "portatil",
-                    pestillo > 0 ? "1920x1080" : "1280x720");
+                    pestillo > 0 ? "la del modo 4" : "1280x720");
       }
     }
     return quiero;
   }
   const std::string r = REXCVAR_GET(nfsmw_resolucion_interna);
-  if (r == "1920x1080") {
+  if (r == "1920x1080" || Modo4().reducida) {
     return kModo1080p;
   }
   if (r == "automatico") {
@@ -352,10 +407,10 @@ void ForzarModoSinAa(uint8_t* base) {
   }
   Escribir32(base, obj, quiero);
   if (g_modo_puesto.exchange(quiero, std::memory_order_relaxed) != quiero) {
-    REXLOG_INFO("[resolucion] {} ({}): modo {}", quiero == kModo1080p ? "1920x1080" : "1280x720",
-                EnSobremesa() ? "sobremesa" : "portatil", quiero);
+    REXLOG_INFO("[resolucion] {}x{} ({}): modo {}", quiero == kModo1080p ? Modo4().ancho : 1280,
+                quiero == kModo1080p ? Modo4().visible : 720, EnSobremesa() ? "sobremesa" : "portatil", quiero);
 #if REX_PLATFORM_SWITCH
-    RexSwitchPerfResolution(quiero == kModo1080p ? kAncho1080p : 1280, quiero == kModo1080p ? kVisible1080p : 720);
+    RexSwitchPerfResolution(quiero == kModo1080p ? Modo4().ancho : 1280, quiero == kModo1080p ? Modo4().visible : 720);
 #endif
   }
 }
@@ -397,7 +452,9 @@ void ImponerTamanoDeSalida(uint8_t* base, const char* donde) {
       // 0 does not mean "1280x720": nothing is touched and the game picks the size, which with 1024x576 is
       // not 720p.
       REXLOG_INFO("[resolucion] salida del juego al arrancar: {} ({})",
-                  quiero ? "1920x1080, impuesta" : "la que elija el juego", donde);
+                  quiero ? fmt::format("{}x{}, impuesta", Modo4().ancho, Modo4().visible)
+                         : std::string("la que elija el juego"),
+                  donde);
     } else {
       quiero = esperado;
     }
@@ -405,14 +462,14 @@ void ImponerTamanoDeSalida(uint8_t* base, const char* donde) {
   if (quiero <= 0) {
     return;
   }
-  Escribir32(base, kGlobalAncho0, kAncho1080p);
-  Escribir32(base, kGlobalAlto0, kVisible1080p);
-  Escribir32(base, kGlobalAncho1, kAncho1080p);
-  Escribir32(base, kGlobalAlto1, kVisible1080p);
-  Escribir32(base, kGlobalModoSalida, kModoSalida1080p);
+  Escribir32(base, kGlobalAncho0, Modo4().ancho);
+  Escribir32(base, kGlobalAlto0, Modo4().visible);
+  Escribir32(base, kGlobalAncho1, Modo4().ancho);
+  Escribir32(base, kGlobalAlto1, Modo4().visible);
+  Escribir32(base, kGlobalModoSalida, Modo4().modo_salida);
   static std::atomic<uint32_t> avisos{0};
   if (avisos.fetch_add(1, std::memory_order_relaxed) < 8) {
-    REXLOG_INFO("[resolucion] bufer frontal del juego: {}x{} ({})", kAncho1080p, kVisible1080p, donde);
+    REXLOG_INFO("[resolucion] bufer frontal del juego: {}x{} ({})", Modo4().ancho, Modo4().visible, donde);
   }
 }
 
@@ -423,24 +480,24 @@ void EscribirTamanoVideo(uint8_t* base) {
   if (!SalidaDelJuegoEs1080p()) {
     return;
   }
-  Escribir32(base, kGlobalAncho0, kAncho1080p);
-  Escribir32(base, kGlobalAlto0, kVisible1080p);
-  Escribir32(base, kGlobalAncho1, kAncho1080p);
-  Escribir32(base, kGlobalAlto1, kVisible1080p);
-  Escribir32(base, kGlobalModoSalida, kModoSalida1080p);
+  Escribir32(base, kGlobalAncho0, Modo4().ancho);
+  Escribir32(base, kGlobalAlto0, Modo4().visible);
+  Escribir32(base, kGlobalAncho1, Modo4().ancho);
+  Escribir32(base, kGlobalAlto1, Modo4().visible);
+  Escribir32(base, kGlobalModoSalida, Modo4().modo_salida);
   static std::atomic<uint32_t> avisos{0};
   if (avisos.fetch_add(1, std::memory_order_relaxed) < 4) {
-    REXLOG_INFO("[resolucion] tamano de video del juego: {}x{}, modo de salida {}", kAncho1080p, kVisible1080p,
-                kModoSalida1080p);
+    REXLOG_INFO("[resolucion] tamano de video del juego: {}x{}, modo de salida {}", Modo4().ancho, Modo4().visible,
+                Modo4().modo_salida);
   }
 }
 
 void EscribirSalida1080p(uint8_t* base, uint32_t direccion_ancho, uint32_t direccion_alto) {
-  Escribir32(base, direccion_ancho, kAncho1080p);
-  Escribir32(base, direccion_alto, kVisible1080p);
+  Escribir32(base, direccion_ancho, Modo4().ancho);
+  Escribir32(base, direccion_alto, Modo4().visible);
   static std::atomic<uint32_t> avisos{0};
   if (avisos.fetch_add(1, std::memory_order_relaxed) < 4) {
-    REXLOG_INFO("[resolucion] salida del juego: {}x{}", kAncho1080p, kVisible1080p);
+    REXLOG_INFO("[resolucion] salida del juego: {}x{}", Modo4().ancho, Modo4().visible);
   }
 }
 

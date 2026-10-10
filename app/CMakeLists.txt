@@ -36,6 +36,8 @@ set(NFSMW_SOURCES
     # Linear resamplers of the sound engine in native code, bit-identical
     # (cvar nfsmw_audio_remuestreo_nativo).
     src/nfsmw_audio_remuestreo.cpp
+    # Where the race music is lost: the music gate's flag and the level it lets through (nfsmw_audio_diag_musica).
+    src/nfsmw_audio_musica.cpp
     # Recursive filter of the sound engine (sub_825CD088) in native code, bit-identical
     # (cvar nfsmw_audio_filtro_nativo).
     src/nfsmw_audio_filtro.cpp
@@ -124,6 +126,30 @@ set(NFSMW_SOURCES
     src/nfsmw_pgo.cpp
 )
 
+# deko3d build (docs/HowToDeko3d.md): -DREXGLUE_SWITCH_DEKO3D=ON with the Switch toolchain. No Mesa: the SDK is
+# built without Vulkan, and the native renderer's Vulkan backend (C2-C6) is replaced by the deko3d one; the ring,
+# the PM4 reading, the shader identification and the game hooks are the same.
+if(REXGLUE_SWITCH_DEKO3D)
+    list(REMOVE_ITEM NFSMW_SOURCES
+        src/nfsmw_nativo_destinos.cpp
+        src/nfsmw_nativo_dibujos.cpp
+        src/nfsmw_nativo_texturas_pool.cpp)
+    list(APPEND NFSMW_SOURCES
+        # Device, queue, memory and swapchain; the SPIR-V to GLSL to DKSH path and its cache; the compile worker;
+        # the SDK's provider, presenter and ImGui drawer; the renderer backend.
+        src/nfsmw_dk_nucleo.cpp
+        src/nfsmw_dk_glsl.cpp
+        src/nfsmw_dk_cache_dksh.cpp
+        src/nfsmw_dk_compilador.cpp
+        src/nfsmw_dk_presentador.cpp
+        src/nfsmw_dk_destinos.cpp
+        src/nfsmw_dk_dibujos.cpp
+        src/nfsmw_dk_texturas.cpp
+        src/nfsmw_dk_geometria.cpp
+        # posix_memalign for FFmpeg: the Mesa SDK brought it in the NVK build.
+        src/nfsmw_dk_libc.cpp)
+endif()
+
 if(WIN32)
     add_executable(nfsmw WIN32 ${NFSMW_SOURCES})
     # PC build: masks again the floating-point exceptions that
@@ -158,7 +184,34 @@ endif()
 #
 # Since src/nfsmw_app.h sets gpu_plugin=xenos by default, the --gpu_plugin
 # argument is no longer needed; it can still be passed to change it.
-rexglue_setup_target(nfsmw GPU_PLUGINS xenos)
+if(REXGLUE_SWITCH_DEKO3D)
+    rexglue_setup_target(nfsmw)  # no Xenos emulation plugin: the native renderer is the only one
+else()
+    rexglue_setup_target(nfsmw GPU_PLUGINS xenos)
+endif()
+
+if(REXGLUE_SWITCH_DEKO3D)
+    # uam (GLSL to DKSH) and SPIRV-Cross, fetched with tools/fetch_thirdparty.py --deko3d.
+    foreach(fuente SPIRV-Cross/spirv_glsl.cpp uam/uam_api.h)
+        if(NOT EXISTS "${REXSDK_DIR}/thirdparty/${fuente}")
+            message(FATAL_ERROR "Missing sdk/thirdparty/${fuente}: run python tools/fetch_thirdparty.py --deko3d")
+        endif()
+    endforeach()
+    enable_language(C)  # uam has C sources (Mesa's preprocessor); this project only declares CXX
+    add_subdirectory("${REXSDK_DIR}/thirdparty/uam" uam EXCLUDE_FROM_ALL)
+    set(SPIRV_CROSS_CLI OFF CACHE BOOL "" FORCE)
+    set(SPIRV_CROSS_ENABLE_TESTS OFF CACHE BOOL "" FORCE)
+    set(SPIRV_CROSS_ENABLE_HLSL OFF CACHE BOOL "" FORCE)
+    set(SPIRV_CROSS_ENABLE_MSL OFF CACHE BOOL "" FORCE)
+    set(SPIRV_CROSS_ENABLE_CPP OFF CACHE BOOL "" FORCE)
+    set(SPIRV_CROSS_ENABLE_REFLECT OFF CACHE BOOL "" FORCE)
+    set(SPIRV_CROSS_ENABLE_C_API OFF CACHE BOOL "" FORCE)
+    set(SPIRV_CROSS_ENABLE_UTIL OFF CACHE BOOL "" FORCE)
+    set(SPIRV_CROSS_SKIP_INSTALL ON CACHE BOOL "" FORCE)
+    add_subdirectory("${REXSDK_DIR}/thirdparty/SPIRV-Cross" spirv-cross EXCLUDE_FROM_ALL)
+    target_link_libraries(nfsmw PRIVATE uamlib spirv-cross-glsl spirv-cross-core)
+    target_compile_definitions(nfsmw PRIVATE NFSMW_DEKO3D=1)
+endif()
 
 # The SDK's FFmpeg (WMV3 decoder) for the cutscenes: nfsmw_video_wmv3.cpp.
 target_link_libraries(nfsmw PRIVATE libavcodec)
