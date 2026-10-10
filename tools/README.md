@@ -41,3 +41,4 @@ code generator another way, run them afterwards, in this order.
 |---|---|
 | `switch/cmake/` | The CMake toolchain for devkitA64 and [libnx](../docs/glossary.md#libnx), `switch-devkitA64.cmake`: the file that tells CMake how to compile for the Switch. |
 | `editions/` | Support for the other editions: address matching, tree creation, checks, profile translation, per-edition build ([docs/editions.md](../docs/editions.md)). |
+| `french-dub/` | Makes the PAL (English) edition French (text, movies, in-game speech) from the player's own original Xbox French disc ([french-dub/README.md](french-dub/README.md)). |
