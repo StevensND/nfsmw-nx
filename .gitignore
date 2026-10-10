@@ -3,6 +3,7 @@
 
 # --- Game files ---------------------------------------------------------------
 assets/
+rom/
 *.xex
 *.xexp
 *.iso
@@ -17,6 +18,7 @@ generated/
 app*/generated/
 app*/src/copias_literales/
 app*/src/nfsmw_nativo_resplandor_*_spirv.h
+app*/src/nfsmw_dk_resplandor_spirv.h
 app_*/
 
 # --- Build output -------------------------------------------------------------

@@ -11,6 +11,7 @@
 # Usage:
 #   cmake -G Ninja -DCMAKE_TOOLCHAIN_FILE=<this file> \
 #         -DREXGLUE_SWITCH_NVK_SDK=<mesa-...-horizon-sdk>/opt/devkitpro/portlibs/switch ...
+#   cmake -G Ninja -DCMAKE_TOOLCHAIN_FILE=<this file> -DREXGLUE_SWITCH_DEKO3D=ON ...   (deko3d, no Mesa)
 
 set(CMAKE_SYSTEM_NAME Generic)
 set(CMAKE_SYSTEM_VERSION 1)
@@ -20,7 +21,12 @@ set(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY)
 set(REXGLUE_PLATFORM_SWITCH ON CACHE BOOL "Build rexglue for Nintendo Switch/libnx")
 set(REXGLUE_ENABLE_TRACY OFF CACHE BOOL "Tracy is unavailable on Switch" FORCE)
 set(REXGLUE_ENABLE_PERF_COUNTERS OFF CACHE BOOL "No perf counters on Switch" FORCE)
-set(REXGLUE_USE_VULKAN ON CACHE BOOL "NVK" FORCE)
+# REXGLUE_SWITCH_DEKO3D (-D on the command line): the deko3d renderer (docs/HowToDeko3d.md), without Vulkan.
+if(REXGLUE_SWITCH_DEKO3D)
+    set(REXGLUE_USE_VULKAN OFF CACHE BOOL "deko3d build: no Vulkan" FORCE)
+else()
+    set(REXGLUE_USE_VULKAN ON CACHE BOOL "NVK" FORCE)
+endif()
 set(REXGLUE_USE_D3D12 OFF CACHE BOOL "No D3D12 on Switch" FORCE)
 
 if(NOT DEFINED DEVKITPRO)

@@ -40,6 +40,15 @@ Libraries used by the SDK, the NRO and the code generator, fetched from the subm
 | AES-128 by LuoPeng (`thirdparty/aes_128`) | MIT |
 | [libnx](https://github.com/switchbrew/libnx) and the devkitA64 runtime (newlib, libstdc++) | ISC; newlib and GCC runtime licenses |
 
+The deko3d renderer (in progress, `docs/HowToDeko3d.md`; linked into the deko3d test NRO and the PC shader tool
+`shaders/dksh`, not into the released NROs yet), fetched with `tools/fetch_thirdparty.py --deko3d`:
+
+| Library | License |
+|---|---|
+| [deko3d](https://github.com/devkitPro/deko3d) (devkitPro's package) | zlib |
+| [uam](https://github.com/devkitPro/uam), as vendored by [SwitchWakerHD](https://github.com/centollOS/SwitchWakerHD) (`runtime/third_party/uam`, with the patches its `PATCHES.md` lists) | zlib for uam's own files, MIT for the Mesa parts |
+| [SPIRV-Cross](https://github.com/KhronosGroup/SPIRV-Cross) | Apache-2.0 |
+
 ### FFmpeg and libmspack (LGPL)
 
 This port modifies these files of the SDK's third-party tree; the modified copies are in `sdk/thirdparty`:

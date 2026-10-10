@@ -54,7 +54,16 @@ std::vector<platform::DynamicLibrary>& LoadedPlugins() {
 
 }  // namespace
 
-#if REX_PLATFORM_SWITCH
+#if REX_PLATFORM_SWITCH && REXGLUE_SWITCH_DEKO3D
+
+// nfsmw: the deko3d build links no GPU plugin; the title brings its graphics system (config.graphics).
+std::unique_ptr<IGraphicsSystem> LoadGpuPlugin(std::string_view name, std::string_view backend) {
+  (void)backend;
+  REXSYS_ERROR("GPU plugin '{}' is not linked into this executable (deko3d build: no GPU plugins)", name);
+  return nullptr;
+}
+
+#elif REX_PLATFORM_SWITCH
 }  // namespace rex::system
 
 // A NRO cannot load code at run time: rexgpu-xenos is linked into the
