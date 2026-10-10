@@ -28,6 +28,15 @@ Xbox disc and stay in English.
 
 ## Usage
 
+All in one go (asks for the two disc images and where to save, about an hour):
+
+```sh
+python build_package.py [--x360 ISO] [--xbox ISO] [--out nfsmw-nx-vf.zip] [--ffmpeg FFMPEG] [--vgmstream CLI]
+```
+
+It writes a zip holding `nfsmw-nx/game_root/...`, to extract into `sdmc:/switch/` like the installer
+page's zip. The three steps can also be run on their own:
+
 ```sh
 python patch_text.py   <360.iso> <xbox.iso> out
 python patch_movies.py <360.iso> <xbox.iso> out/Movies <ffmpeg>
