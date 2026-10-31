@@ -11,7 +11,8 @@ generator, translate the game to C++, build the NRO, build the shader library, a
 Each step says what to do and why. If a word is new to you, it is in the [glossary](glossary.md).
 
 Everything was done on Windows 10/11 (64-bit). The scripts are PowerShell, bash (Git Bash or MSYS2) and Python. Only
-the driver build is tied to Windows; other systems should work, but nobody has tried them.
+the driver build is tied to Windows here; [building-linux.md](building-linux.md) is the whole route on Linux and
+WSL, driver included.
 
 ## What you need
 

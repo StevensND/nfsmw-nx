@@ -27,7 +27,9 @@
    ```
 
 3. Build it. The first time, use mesa-switch's own script, `build-unified.sh` (its README explains how). Later
-   rebuilds are quicker with `build_mesa_msys2.sh`, in this folder. The result is an SDK folder.
+   rebuilds are quicker with `build_mesa_msys2.sh`, in this folder. The result is an SDK folder. On Linux and WSL,
+   `build-unified.sh` does not run (it needs MSYS2): use `linux/build.sh`, in this folder, instead
+   ([docs/building-linux.md](../docs/building-linux.md)).
 4. Tell the app where that SDK folder is when you configure it:
    `-DREXGLUE_SWITCH_NVK_SDK=<sdk>/opt/devkitpro/portlibs/switch`. The whole process is in
    [docs/building.md](../docs/building.md).
