@@ -29,7 +29,7 @@ This is the path the game follows, from the Xbox 360 disc to the Switch screen:
 
 | You want to... | Read |
 |---|---|
-| Build the port yourself | [building.md](building.md) |
+| Build the port yourself | [building.md](building.md), or [building-linux.md](building-linux.md) on Linux and WSL |
 | Port another Xbox 360 game | [porting-another-game.md](porting-another-game.md), then [native-renderer.md](native-renderer.md), [shaders.md](shaders.md) and [platform-notes.md](platform-notes.md) |
 | Make a port faster | [measuring.md](measuring.md) first, then [performance-history.md](performance-history.md), [toolchain.md](toolchain.md) and [mesa.md](mesa.md) |
 | Support another edition or language of the game | [editions.md](editions.md) |
@@ -41,6 +41,7 @@ This is the path the game follows, from the Xbox 360 disc to the Switch screen:
 |---|---|
 | [glossary.md](glossary.md) | Every technical word, in plain words |
 | [building.md](building.md) | How to build the NRO, the driver and the shader library, step by step |
+| [building-linux.md](building-linux.md) | The same build on Linux and WSL, and what is different there |
 | [porting-another-game.md](porting-another-game.md) | What you can reuse for another game, and in which order to work |
 | [native-renderer.md](native-renderer.md) | How the port draws the game with Vulkan |
 | [shaders.md](shaders.md) | How the game's shaders are translated, and what had to be fixed |

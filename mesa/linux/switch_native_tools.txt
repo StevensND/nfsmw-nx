@@ -1,0 +1,7 @@
+# switch_native_tools_msys2.txt of mesa-switch, for a Linux host: the host tools built by mesa/linux/build.sh in
+# builddir-native-host, and cbindgen and rustc from PATH (rustup's).
+[binaries]
+mesa_clc = '@GLOBAL_SOURCE_ROOT@/builddir-native-host/src/compiler/clc/mesa_clc'
+vtn_bindgen2 = '@GLOBAL_SOURCE_ROOT@/builddir-native-host/src/compiler/spirv/vtn_bindgen2'
+cbindgen = 'cbindgen'
+rust = 'rustc'
