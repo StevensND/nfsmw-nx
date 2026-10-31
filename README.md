@@ -107,6 +107,24 @@ desaturation and a dark vignette. To make it softer or turn it off, change `nfsm
 
 It costs nothing.
 
+### Steering (left stick)
+
+The game ignores the first part of the stick's travel, and a Switch stick travels less than an Xbox 360 one, so small
+steering corrections are hard to make and easy to overdo. These settings reshape the left stick before the game sees
+it. With their defaults the stick goes to the game untouched. They can be changed while playing from the Debug Menu
+(L + R + Right, category **Input**), or added to `nfsmw.toml`:
+
+```toml
+input_left_stick_deadzone = 0.06       # ignored around the centre, so a resting stick does not steer
+input_left_stick_anti_deadzone = 0.22  # where the travel starts: the edge of the game's own dead zone
+input_left_stick_outer_deadzone = 0.0  # travel at the edge that already counts as fully pushed
+input_left_stick_curve = 1.0           # 1 = linear; above 1 is finer near the centre
+```
+
+Start with the values above. If the car still does not answer a small push, raise the anti dead zone a little; if it
+twitches or drifts with the stick at rest, lower it or raise the dead zone. Always use some dead zone together with an
+anti dead zone: without one, the stick's resting noise would steer.
+
 ## Debug Menu
 
 **It's only available in Spanish for now.** Press **L + R + Right** (D-pad) while playing to open it and again to close it.
