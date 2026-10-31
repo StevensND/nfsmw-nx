@@ -108,6 +108,36 @@ Before shipping an edition build, run the same checks as for the reference (see 
 `_start` at address 0, the texture key check (`tools/comprobar_clave_textura.py`), and the same number of installed
 hooks as the reference.
 
+### Building the USA edition with only a USA executable
+
+Steps 1 to 3 need the Spanish executable. Their results for the USA edition are in the repository, so a USA
+`default.xex` is enough to build it:
+
+- `tools/editions/usa/todas.tsv`: the address table of step 1 (`emparejar.py`), with the hooked functions checked
+  as in step 2.
+- `tools/editions/usa/huellas.txt`: the fingerprints of the bright pass and sky shaders in the USA edition, which
+  `crear_arbol.py` reads when none are given. They were found by the SHA-256 of their microcode, as the installer
+  does, so no disc files are needed.
+- `tools/editions/referencia/`: the function partition and the weak calls of the Spanish build, which
+  `crear_arbol.py` otherwise takes from `app/generated/default`. It uses this copy when there is no codegen of
+  `app/`.
+
+None of them hold anything of the game but addresses, file numbers and fingerprints. With the USA executable at
+`assets/usa/default.xex`:
+
+```bash
+python tools/editions/crear_arbol.py usa tools/editions/usa/todas.tsv ../assets/usa/default.xex \
+  --parejas tools/editions/usa/parejas_corregidas.json
+REXGLUE=out/host/rexglue tools/codegen.sh app_usa app_usa/enganchadas.txt tools/editions/usa/todas.tsv
+```
+
+Then build `app_usa` as in step 7. Always run `codegen.sh` after `crear_arbol.py`: the tree creator copies or removes
+the literal copies in `src/copias_literales`, and the codegen writes those of the edition.
+
+The copy in `tools/editions/referencia/` must match `app/` and is only valid until the partition or the hooks change.
+Whoever has the Spanish executable refreshes it after a codegen of `app/` with `--guardar-referencia`, and the USA
+table with steps 1 and 2.
+
 ## Installer manifest
 
 The installer page reads `release/manifest.json`, in the

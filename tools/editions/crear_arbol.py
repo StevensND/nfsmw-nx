@@ -11,10 +11,13 @@
 #
 # The partition of functions across files (generated/default/codegen.partition.json) is seeded with the
 # translated Spanish one: the codegen honors it, and every file comes out with the same functions in the
-# same order.
+# same order. Without a codegen of app/ (only another edition's executable at hand), the Spanish partition
+# and its weak calls come from tools/editions/referencia; --guardar-referencia refreshes that copy.
 #
 # Usage: py tools/editions/crear_arbol.py <edition> <table.tsv> <xex relative to app/> [OLD=NEW ...]
+#          [--parejas <json>] [--guardar-referencia]
 #   OLD=NEW: XXH3 fingerprints of shaders that change in that edition (kHuellaBrightPass, kHuellaCielo...).
+#            Without them, tools/editions/<edition>/huellas.txt is read if it exists.
 import glob
 import json
 import os
@@ -24,6 +27,8 @@ import sys
 
 RAIZ = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 APP = os.path.join(RAIZ, 'app')
+EDICIONES = os.path.join(RAIZ, 'tools', 'editions')
+REFERENCIA = os.path.join(EDICIONES, 'referencia')
 PAT = re.compile(r'(?<![0-9A-Fa-f])82[0-9A-Fa-f]{6}(?![0-9A-Fa-f])')
 # headers with SPIR-V or other binary data written in hexadecimal: not addresses
 BINARIOS = ('_spirv.h', '_ps.h', '_vs.h')
@@ -72,6 +77,38 @@ def traducir_texto(texto, mapa, faltan):
     return PARTIDA.sub(cambiar_partida, PAT.sub(cambiar, texto))
 
 
+def cargar_referencia(guardar):
+    """The function partition of the Spanish build and the functions it calls through their weak alias.
+
+    Both come from app/generated/default after a codegen of app/. Without it (only another edition's
+    executable at hand) they come from tools/editions/referencia, a copy made with --guardar-referencia:
+    addresses and file numbers only, nothing of the game's code.
+    """
+    generado = os.path.join(APP, 'generated', 'default')
+    if os.path.exists(os.path.join(generado, 'codegen.partition.json')):
+        reparto = json.load(open(os.path.join(generado, 'codegen.partition.json')))
+        debil = re.compile(r'(?<![\w])sub_([0-9A-F]{8})\(ctx, base\);')
+        debiles = set()
+        for ruta in glob.glob(os.path.join(generado, 'nfsmw_recomp.*.cpp')):
+            debiles.update(debil.findall(open(ruta, encoding='utf-8').read()))
+        debiles = sorted(debiles)
+        if guardar:
+            os.makedirs(REFERENCIA, exist_ok=True)
+            with open(os.path.join(REFERENCIA, 'codegen.partition.json'), 'w', encoding='utf-8', newline='\n') as f:
+                f.write(json.dumps(reparto, indent=2) + '\n')
+            with open(os.path.join(REFERENCIA, 'debiles.txt'), 'w', encoding='utf-8', newline='\n') as f:
+                f.write('\n'.join(debiles) + '\n')
+        return reparto, debiles
+    if guardar:
+        raise SystemExit('--guardar-referencia needs app/generated/default (run tools/codegen.sh app first)')
+    if not os.path.exists(os.path.join(REFERENCIA, 'codegen.partition.json')):
+        raise SystemExit('no reference: run tools/codegen.sh app, or restore tools/editions/referencia')
+    print('referencia: tools/editions/referencia (no app/generated/default)')
+    reparto = json.load(open(os.path.join(REFERENCIA, 'codegen.partition.json')))
+    debiles = open(os.path.join(REFERENCIA, 'debiles.txt'), encoding='utf-8').read().split()
+    return reparto, debiles
+
+
 def main():
     edicion, tabla, xex = sys.argv[1:4]
     resto = sys.argv[4:]
@@ -83,7 +120,18 @@ def main():
         i = resto.index('--parejas')
         correcciones = json.load(open(resto[i + 1], encoding='utf-8'))
         del resto[i:i + 2]
+    # --guardar-referencia: also write the reference data below to tools/editions/referencia, to commit it
+    guardar_referencia = '--guardar-referencia' in resto
+    if guardar_referencia:
+        resto.remove('--guardar-referencia')
     huellas = [a.split('=') for a in resto]
+    if not huellas and os.path.exists(os.path.join(EDICIONES, edicion, 'huellas.txt')):
+        # tools/editions/<edition>/huellas.txt: the same OLD=NEW pairs, one per line, # for comments
+        for linea in open(os.path.join(EDICIONES, edicion, 'huellas.txt'), encoding='utf-8'):
+            linea = linea.split('#')[0].strip()
+            if linea:
+                huellas.append(linea.split('='))
+    reparto, debiles = cargar_referencia(guardar_referencia)
     seguras, todas = cargar_tabla(tabla)
     todas.update({int(p, 16): int(o, 16) for p, o in correcciones.get('parejas', {}).items()})
     destino = os.path.join(RAIZ, 'app_' + edicion)
@@ -129,6 +177,9 @@ def main():
     # the rest of app/ that the build uses
     for rel in ('CMakeLists.txt', 'CMakePresets.json', 'nfsmw.toml', 'orden_funciones.ld', 'overrides.toml',
                 os.path.join('generated', 'rexglue.cmake')):
+        if not os.path.exists(os.path.join(APP, rel)):
+            # rexglue.cmake only exists after a codegen of app/; the codegen of the edition writes its own
+            continue
         texto = open(os.path.join(APP, rel), encoding='utf-8', newline='').read()
         if rel == 'CMakeLists.txt':
             # PGO profile translated to this edition (tools/editions/pgo/traducir_perfil.py)
@@ -169,7 +220,6 @@ def main():
 
     # function partition seeded with the Spanish one. First the safe and the corrected pairs; a doubtful one
     # only if its slot is still free (a misplaced doubtful one can land on top of another function's exact pair).
-    reparto = json.load(open(os.path.join(APP, 'generated', 'default', 'codegen.partition.json')))
     fiables = dict(seguras)
     fiables.update({int(p, 16): int(o, 16) for p, o in correcciones.get('parejas', {}).items()})
     sembrado = {}
@@ -186,12 +236,10 @@ def main():
     # calls through the weak path, translated. That way every call comes out the same as in the Spanish
     # edition, call by call. A list taken from the current sources does not work: they mention new addresses
     # since the last run of the tool.
-    debil = re.compile(r'(?<![\w])sub_([0-9A-F]{8})\(ctx, base\);')
     enganchadas = set()
-    for ruta in glob.glob(os.path.join(APP, 'generated', 'default', 'nfsmw_recomp.*.cpp')):
-        for x in debil.findall(open(ruta, encoding='utf-8').read()):
-            d = todas.get(int(x, 16))
-            enganchadas.add('sub_%08X' % (d if d is not None else int(x, 16)))
+    for x in debiles:
+        d = todas.get(int(x, 16))
+        enganchadas.add('sub_%08X' % (d if d is not None else int(x, 16)))
     escribir('enganchadas.txt', '\n'.join(sorted(enganchadas)) + '\n')
 
     print('ficheros reescritos: %s' % (', '.join(escritos) or 'ninguno'))
