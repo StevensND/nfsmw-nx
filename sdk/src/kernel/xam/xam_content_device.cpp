@@ -40,7 +40,8 @@ static const DummyDeviceInfo dummy_hdd_device_info_ = {
     DummyDeviceId::HDD, DeviceType::HDD,
     20ull * ONE_GB,  // 20GB
     3ull * ONE_GB,   // 3GB, so it looks a little used.
-    u"Dummy HDD",
+    // Shown to the player in the game's storage device dialogs; the saves live on the SD card.
+    u"Switch SD",
 };
 static const DummyDeviceInfo dummy_odd_device_info_ = {
     DummyDeviceId::ODD, DeviceType::ODD,
