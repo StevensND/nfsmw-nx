@@ -46,6 +46,9 @@ def main():
                 if name == '.git':
                     continue
                 src = os.path.join(dirpath, name)
+                # Dangling symlinks (MoltenVK's demos have one) are checked out as links outside Windows.
+                if os.path.islink(src) and not os.path.exists(src):
+                    continue
                 dst = os.path.join(target, os.path.relpath(src, source))
                 if os.path.exists(dst):
                     kept += 1
