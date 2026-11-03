@@ -508,7 +508,9 @@ void SettingsDialog::OnDraw(ImGuiIO& /*io*/) {
         }
       } else if (entry.type == rex::cvar::FlagType::Double) {
         double v = std::atof(current_val.c_str());
-        if (ImGui::InputDouble("##v", &v, 0.0, 0.0, "%.4f")) {
+        // With a step ImGui adds - and + buttons, as InputInt does: without them the value could only be typed,
+        // and the Switch has no keyboard here.
+        if (ImGui::InputDouble("##v", &v, 0.01, 0.1, "%.4f")) {
           if (entry.constraints.min)
             v = std::max(v, *entry.constraints.min);
           if (entry.constraints.max)

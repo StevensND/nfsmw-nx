@@ -12,7 +12,9 @@
 #include <rex/codegen/project_recompiler.h>
 
 #include <algorithm>
+#include <cstdlib>
 #include <filesystem>
+#include <fstream>
 #include <span>
 #include <unordered_map>
 
@@ -260,6 +262,18 @@ Result<void> ProjectRecompiler::Run(const ProjectRecompilerOptions& opts) {
   auto entry_display_name = std::filesystem::path(targeted[0].config.filePath).filename().string();
   ReportBinaryInfo(opts.reporter, entry_display_name,
                    *runtime->kernel_state()->GetExecutableModule()->xex_module());
+
+  // REXGLUE_VOLCAR_IMAGEN=<file>: only write the loaded PE image there, headers included, and stop. It is
+  // the input of tools/editions/emparejar.py (docs/building-linux.md).
+  if (const char* volcar = std::getenv("REXGLUE_VOLCAR_IMAGEN")) {
+    const auto* xex = runtime->kernel_state()->GetExecutableModule()->xex_module();
+    const auto* imagen = runtime->memory()->TranslateVirtual<const char*>(xex->base_address());
+    std::ofstream salida(volcar, std::ios::binary);
+    if (!salida.write(imagen, xex->image_size())) {
+      return Err<void>(ErrorCategory::IO, fmt::format("Failed to write the image to {}", volcar));
+    }
+    return Ok();
+  }
 
   std::vector<rex::system::object_ref<rex::system::UserModule>> dllModules;
   for (size_t i = 1; i < targeted.size(); ++i) {

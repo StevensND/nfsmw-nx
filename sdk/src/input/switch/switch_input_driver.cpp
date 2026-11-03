@@ -10,6 +10,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <cstring>
 #include <string>
 #include <tuple>
@@ -30,6 +31,34 @@
 REXCVAR_DEFINE_BOOL(input_xbox_layout, false, "Input",
                     "Face buttons by position, as on an Xbox pad (the bottom button, B, acts as A). "
                     "false = by letter: A accepts and B goes back");
+
+/*
+ * Left stick response, for steering. The game ignores the first part of the stick's travel (its
+ * own dead zone, assumed to be XInput's usual 24 %, see nfsmw_prueba_piloto_zona_muerta) and a
+ * Switch stick travels less than an Xbox 360 one, so the range left for small corrections is very
+ * short. With an anti dead zone, the smallest push past input_left_stick_deadzone already reaches
+ * the edge of the game's dead zone and the rest of the travel is spread over what is left.
+ *
+ * Each axis on its own, not the stick's length: the game steers with X only, and a round shape
+ * would shrink X whenever the stick is also a little up or down. With every value at its default
+ * the stick goes to the game untouched, as before. They apply at once, also from the Debug Menu.
+ */
+REXCVAR_DEFINE_DOUBLE(input_left_stick_deadzone, 0.0, "Input",
+                      "Left stick: fraction of the travel ignored around the centre, so a resting stick "
+                      "sends 0. Needed with an anti dead zone (0.05-0.08); 0 = none")
+    .range(0.0, 0.5);
+REXCVAR_DEFINE_DOUBLE(input_left_stick_anti_deadzone, 0.0, "Input",
+                      "Left stick: output where the travel starts, past the dead zone. Set it near the "
+                      "game's own dead zone (about 0.2-0.24) so small corrections steer; 0 = none")
+    .range(0.0, 0.9);
+REXCVAR_DEFINE_DOUBLE(input_left_stick_outer_deadzone, 0.0, "Input",
+                      "Left stick: fraction of the travel at the edge that already counts as fully "
+                      "pushed, for sticks that never report the full range; 0 = none")
+    .range(0.0, 0.5);
+REXCVAR_DEFINE_DOUBLE(input_left_stick_curve, 1.0, "Input",
+                      "Left stick: response curve over the travel. 1 = linear, above 1 = finer near the "
+                      "centre, below 1 = quicker near the centre")
+    .range(0.2, 4.0);
 
 namespace rex::ui {
 // rex/ui/overlay/debug_overlay.h (not included here because it pulls in ImGui).
@@ -136,6 +165,36 @@ enum class RepeatState {
 
 int16_t ClampStickAxis(s32 value) {
   return static_cast<int16_t>(std::clamp<s32>(value, INT16_MIN, INT16_MAX));
+}
+
+struct StickResponse {
+  double deadzone;
+  double anti_deadzone;
+  double outer_deadzone;
+  double curve;
+};
+
+StickResponse LeftStickResponse() {
+  return {REXCVAR_GET(input_left_stick_deadzone), REXCVAR_GET(input_left_stick_anti_deadzone),
+          REXCVAR_GET(input_left_stick_outer_deadzone), REXCVAR_GET(input_left_stick_curve)};
+}
+
+bool IsIdentity(const StickResponse& r) {
+  return r.deadzone <= 0.0 && r.anti_deadzone <= 0.0 && r.outer_deadzone <= 0.0 && r.curve == 1.0;
+}
+
+// One axis through the left stick response (see the input_left_stick_* cvars): dead zone, then the
+// travel stretched from the anti dead zone to full, shaped by the curve.
+int16_t ShapeStickAxis(int16_t value, const StickResponse& r) {
+  const double magnitude = std::abs(static_cast<double>(value)) / 32767.0;
+  if (magnitude <= r.deadzone) {
+    return 0;
+  }
+  const double span = std::max(1.0 - r.deadzone - r.outer_deadzone, 0.01);
+  const double travel = std::pow(std::min((magnitude - r.deadzone) / span, 1.0), r.curve);
+  const double output = std::min(r.anti_deadzone + (1.0 - r.anti_deadzone) * travel, 1.0);
+  const auto shaped = static_cast<int16_t>(std::lround(output * 32767.0));
+  return value < 0 ? static_cast<int16_t>(-shaped) : shaped;
 }
 
 // Check if the analog inputs exceed their thresholds to become a button press
@@ -316,8 +375,14 @@ void SwitchInputDriver::Poll(size_t index) {
   // HID reports up as positive Y, like XInput, so no inversion is needed.
   const HidAnalogStickState left = padGetStickPos(&slot.pad, 0);
   const HidAnalogStickState right = padGetStickPos(&slot.pad, 1);
-  gamepad.thumb_lx = ClampStickAxis(left.x);
-  gamepad.thumb_ly = ClampStickAxis(left.y);
+  int16_t left_x = ClampStickAxis(left.x);
+  int16_t left_y = ClampStickAxis(left.y);
+  if (const StickResponse response = LeftStickResponse(); !IsIdentity(response)) {
+    left_x = ShapeStickAxis(left_x, response);
+    left_y = ShapeStickAxis(left_y, response);
+  }
+  gamepad.thumb_lx = left_x;
+  gamepad.thumb_ly = left_y;
   gamepad.thumb_rx = ClampStickAxis(right.x);
   gamepad.thumb_ry = ClampStickAxis(right.y);
   /*

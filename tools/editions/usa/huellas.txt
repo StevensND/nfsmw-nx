@@ -1,0 +1,5 @@
+# XXH3 fingerprints of the special shaders that change in the USA edition (OLD=NEW for crear_arbol.py).
+# Found by the SHA-256 of their microcode, as the installer does (lib/installer.js, SPECIAL_SHADERS). The
+# composition shader (19C0C358044A29BF) is the same in both editions.
+E849A9F6D3323B87=CBE1085BC16100E7  # kHuellaBrightPass
+28AA3CDAC6C19705=BD5DF403A547935F  # kHuellaCielo
